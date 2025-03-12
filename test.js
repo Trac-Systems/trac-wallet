@@ -72,7 +72,7 @@ describe('Wallet', () => {
 
         it('should not sign message when no keys are set', () => {
             const emptyWallet = new Wallet();
-            expect(() => emptyWallet.signMessage('Hello, world!')).to.throw('No secret key found');
+            expect(() => emptyWallet.signMessage('Hello, world!')).to.throw('No key pair found. Please, generate a key pair first');
         });
     });
 

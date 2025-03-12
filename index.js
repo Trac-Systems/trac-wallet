@@ -6,17 +6,21 @@ import * as fs from 'fs';
 const size = 128; // 12 words. Size equal to 256 is 24 words.
 
 export class Wallet {
-    #secretKey = null; // TODO: This needs to be in a secure storage, not in memory. This is just a temporary solution.
-    #publicKey = null;
+    #keyPair; // TODO: This needs to be in a secure storage, not in memory. This is just a temporary solution.
 
     constructor(mnemonicInput) {
+        this.#keyPair = {
+            publicKey: null,
+            secretKey: null
+        };
+
         if (mnemonicInput) {
             this.generateKeyPair(mnemonicInput);
         }
     }
 
     get publicKey() {
-        return this.#publicKey;
+        return this.#keyPair.publicKey;
     }
 
     verifySignature(message, signature, publicKey) {
@@ -47,28 +51,28 @@ export class Wallet {
 
         sodium.crypto_sign_seed_keypair(publicKey, secretKey, seed32buffer);
 
-        this.#publicKey = publicKey;
-        this.#secretKey = secretKey;
+        this.#keyPair.publicKey = publicKey;
+        this.#keyPair.secretKey = secretKey;
     }
 
     signMessage(message) {
-        if (!this.#secretKey) {
-            throw new Error('No secret key found');
+        if (!this.#keyPair.secretKey) {
+            throw new Error('No key pair found. Please, generate a key pair first');
         }
         const messageBuffer = Buffer.from(message);
         const signature = Buffer.alloc(sodium.crypto_sign_BYTES);
-        sodium.crypto_sign_detached(signature, messageBuffer, this.#secretKey);
+        sodium.crypto_sign_detached(signature, messageBuffer, this.#keyPair.secretKey);
         return signature;
     };
 
     exportToFile(filePath) {
-        if (!this.#secretKey) {
+        if (!this.#keyPair.secretKey) {
             throw new Error('No secret key found');
         }
         const data = {
             mnemonic: this.mnemonic,
-            publicKey: this.publicKey.toString('hex'),
-            secretKey: this.#secretKey.toString('hex')
+            publicKey: this.#keyPair.publicKey.toString('hex'),
+            secretKey: this.#keyPair.secretKey.toString('hex')
         };
         fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
     }
@@ -82,7 +86,7 @@ export class Wallet {
         // Check if all words are valid
         const words = sanitized.split(' ');
         if (words.length !== 12 || !bip39.validateMnemonic(sanitized)) {
-            throw new Error('Invalid mnemonic');
+            throw new Error('Invalid mnemonic. Please, provide a valid 12-word mnemonic');
         }
 
         return sanitized;
