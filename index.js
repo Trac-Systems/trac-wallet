@@ -20,12 +20,24 @@ export class Wallet {
     }
 
     get publicKey() {
-        return this.#keyPair.publicKey;
+        if (!this.#keyPair.publicKey) {
+            return null;
+        }
+        return this.#keyPair.publicKey.toString('hex');
+    }
+
+    set keyPair(keyPair) {
+        if (!keyPair.publicKey || !keyPair.secretKey) {
+            throw new Error('Invalid key pair. Please provide a valid object with publicKey and secretKey');
+        }
+        this.#keyPair = this.#sanitizeKeyPair(keyPair.publicKey, keyPair.secretKey);
     }
 
     verifySignature(message, signature, publicKey) {
         const messageBuffer = Buffer.from(message);
-        return sodium.crypto_sign_verify_detached(signature, messageBuffer, publicKey);
+        const signatureBuffer = Buffer.from(signature, 'hex');
+        const publicKeyBuffer = Buffer.from(publicKey, 'hex');
+        return sodium.crypto_sign_verify_detached(signatureBuffer, messageBuffer, publicKeyBuffer);
     }
 
     generateMnemonic() {
@@ -62,7 +74,7 @@ export class Wallet {
         const messageBuffer = Buffer.from(message);
         const signature = Buffer.alloc(sodium.crypto_sign_BYTES);
         sodium.crypto_sign_detached(signature, messageBuffer, this.#keyPair.secretKey);
-        return signature;
+        return signature.toString('hex');
     };
 
     exportToFile(filePath) {
@@ -90,5 +102,36 @@ export class Wallet {
         }
 
         return sanitized;
+    }
+
+    #sanitizePublicKey(publicKey) {
+        try {
+            const buffer = Buffer.from(publicKey, 'hex');
+            if (buffer.length !== sodium.crypto_sign_PUBLICKEYBYTES) {
+                throw new Error('Invalid public key length');
+            }
+            return buffer;
+        } catch (error) {
+            throw new Error('Invalid public key format. Please provide a valid hex string');
+        }
+    }
+
+    #sanitizeSecretKey(secretKey) {
+        try {
+            const buffer = Buffer.from(secretKey, 'hex');
+            if (buffer.length !== sodium.crypto_sign_SECRETKEYBYTES) {
+                throw new Error('Invalid secret key length');
+            }
+            return buffer;
+        } catch (error) {
+            throw new Error('Invalid secret key format. Please provide a valid hex string');
+        }
+    }
+
+    #sanitizeKeyPair(publicKey, secretKey) {
+        return {
+            publicKey: this.#sanitizePublicKey(publicKey),
+            secretKey: this.#sanitizeSecretKey(secretKey)
+        };
     }
 }

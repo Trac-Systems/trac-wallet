@@ -23,7 +23,7 @@ describe('Wallet', () => {
         it('should accept a valid mnemonic input', () => {
             const validMnemonic = 'session attitude weekend sign collect mobile return vacuum pool afraid wagon client';
             const walletLocal = new Wallet(validMnemonic);
-            expect(walletLocal.publicKey.toString('hex')).to.equal('82444d4f8f042ec06bbfba4f0b01043a5fdb03e8a8481d740b964563c0f91868');
+            expect(walletLocal.publicKey).to.equal('82444d4f8f042ec06bbfba4f0b01043a5fdb03e8a8481d740b964563c0f91868');
         });
 
         it('should throw an error for mnemonic containing less than 12 words', () => {
@@ -44,13 +44,39 @@ describe('Wallet', () => {
 
     describe('Key Pair Generation', () => {
         it('should generate a valid key pair', () => {
-            expect(wallet.publicKey).to.be.instanceOf(Buffer);
-            expect(wallet.publicKey).to.have.lengthOf(sodium.crypto_sign_PUBLICKEYBYTES);
+            const buf = Buffer.from(wallet.publicKey, 'hex')
+            expect(buf).to.have.lengthOf(sodium.crypto_sign_PUBLICKEYBYTES);
         });
 
         it('should not generate keys with empty input', () => {
             const emptyWallet = new Wallet();
             expect(emptyWallet.publicKey).to.be.null;
+        });
+
+        it('should set a valid key pair', () => {
+            const mnemonic = 'session attitude weekend sign collect mobile return vacuum pool afraid wagon client';
+            const wallet1 = new Wallet(mnemonic);
+            const wallet2 = new Wallet();
+            const keyPair = {
+                publicKey: "82444d4f8f042ec06bbfba4f0b01043a5fdb03e8a8481d740b964563c0f91868",
+                secretKey: "38ff0b5c840266901050964857c54b9f92836bc60383277a788084192ea5a2dc82444d4f8f042ec06bbfba4f0b01043a5fdb03e8a8481d740b964563c0f91868"
+            };
+            wallet2.keyPair = keyPair;
+            expect(wallet2.publicKey.toString).to.equal(wallet1.publicKey.toString);
+
+            const message = 'Hello, world!';
+            const sig1 = wallet1.signMessage(message);
+            const sig2 = wallet2.signMessage(message);
+            expect(sig1).to.equal(sig2);
+        });
+
+        it('should throw an error for invalid key pair', () => {
+            const newWallet = new Wallet();
+            const invalidKeyPair = {
+                publicKey: wallet.publicKey,
+                secretKey: null
+            };
+            expect(() => newWallet.keyPair = invalidKeyPair).to.throw('Invalid key pair. Please provide a valid object with publicKey and secretKey');
         });
     });
 
