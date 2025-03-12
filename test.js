@@ -65,8 +65,8 @@ describe('Wallet', () => {
             expect(wallet2.publicKey.toString).to.equal(wallet1.publicKey.toString);
 
             const message = 'Hello, world!';
-            const sig1 = wallet1.signMessage(message);
-            const sig2 = wallet2.signMessage(message);
+            const sig1 = wallet1.sign(message);
+            const sig2 = wallet2.sign(message);
             expect(sig1).to.equal(sig2);
         });
 
@@ -83,22 +83,22 @@ describe('Wallet', () => {
     describe('Message Signing and Verification', () => {
         it('should sign and verify a message signature', () => {
             const message = 'Hello, world!';
-            const signature = wallet.signMessage(message);
-            const isValid = wallet.verifySignature(message, signature, wallet.publicKey);
+            const signature = wallet.sign(message);
+            const isValid = wallet.verify(signature, message, wallet.publicKey);
             expect(isValid).to.be.true;
         });
 
         it('should verify a signature even with empty key pair', () => {
             const emptyWallet = new Wallet();
             const message = 'Hello, world!';
-            const signature = wallet.signMessage(message);
-            const isValid = emptyWallet.verifySignature(message, signature, wallet.publicKey);
+            const signature = wallet.sign(message);
+            const isValid = emptyWallet.verify(signature, message, wallet.publicKey);
             expect(isValid).to.be.true;
         });
 
         it('should not sign message when no keys are set', () => {
             const emptyWallet = new Wallet();
-            expect(() => emptyWallet.signMessage('Hello, world!')).to.throw('No key pair found. Please, generate a key pair first');
+            expect(() => emptyWallet.sign('Hello, world!')).to.throw('No key pair found. Please, generate a key pair first');
         });
     });
 
@@ -111,9 +111,24 @@ describe('Wallet', () => {
             fs.unlinkSync(filePath); // Clean up the file after test
         });
 
+        it('should be able to import keys from a file', () => {
+            const filePath = './wallet.json';
+            wallet.exportToFile(filePath);
+            const newWallet = new Wallet();
+            newWallet.importFromFile(filePath);
+            expect(newWallet.publicKey.toString).to.equal(wallet.publicKey.toString);
+
+            const message = 'Hello, world!';
+            const sig1 = wallet.sign(message);
+            const sig2 = newWallet.sign(message);
+            expect(sig1).to.equal(sig2);
+
+            fs.unlinkSync(filePath); // Clean up the file after test
+        });
+
         it('should not export keypair when no keys are set', () => {
             const emptyWallet = new Wallet();
-            expect(() => emptyWallet.exportToFile('./wallet.json')).to.throw('No secret key found');
+            expect(() => emptyWallet.exportToFile('./wallet.json')).to.throw('No key pair found');
         });
     });
 });
