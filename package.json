@@ -1,6 +1,6 @@
 {
-  "name": "ed25519-key-generator",
-  "version": "1.0.0",
+  "name": "trac-wallet",
+  "version": "0.0.1",
   "main": "index.js",
   "type": "module",
   "scripts": {
