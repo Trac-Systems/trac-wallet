@@ -22,23 +22,23 @@ describe('Wallet', () => {
 
         it('should accept a valid mnemonic input', () => {
             const validMnemonic = 'session attitude weekend sign collect mobile return vacuum pool afraid wagon client';
-            const walletLocal = new PeerWallet(validMnemonic);
+            const walletLocal = new PeerWallet({mnemonic: validMnemonic});
             expect(walletLocal.publicKey).to.equal('82444d4f8f042ec06bbfba4f0b01043a5fdb03e8a8481d740b964563c0f91868');
         });
 
         it('should throw an error for mnemonic containing less than 12 words', () => {
             const faultyMnemonic = 'session attitude weekend sign collect mobile return vacuum pool afraid wagon';
-            expect(() => new PeerWallet(faultyMnemonic)).to.throw('Invalid mnemonic');
+            expect(() => new PeerWallet({mnemonic: faultyMnemonic})).to.throw('Invalid mnemonic');
         });
 
         it('should throw an error for mnemonic containing more than 12 words', () => {
             const faultyMnemonic = 'session attitude weekend sign collect mobile return vacuum pool afraid wagon client extra';
-            expect(() => new PeerWallet(faultyMnemonic)).to.throw('Invalid mnemonic');
+            expect(() => new PeerWallet({mnemonic: faultyMnemonic})).to.throw('Invalid mnemonic');
         });
 
         it('should throw an error for mnemonic containing invalid word', () => {
             const faultyMnemonic = 'session attitude weekend sign collect mobile return vacuum pool afraid wagon invalid';
-            expect(() => new PeerWallet(faultyMnemonic)).to.throw('Invalid mnemonic');
+            expect(() => new PeerWallet({mnemonic: faultyMnemonic})).to.throw('Invalid mnemonic');
         });
     });
 
@@ -55,7 +55,7 @@ describe('Wallet', () => {
 
         it('should set a valid key pair', () => {
             const mnemonic = 'session attitude weekend sign collect mobile return vacuum pool afraid wagon client';
-            const wallet1 = new PeerWallet(mnemonic);
+            const wallet1 = new PeerWallet({mnemonic: mnemonic});
             const wallet2 = new PeerWallet();
             const keyPair = {
                 publicKey: "82444d4f8f042ec06bbfba4f0b01043a5fdb03e8a8481d740b964563c0f91868",
@@ -151,6 +151,34 @@ describe('Wallet', () => {
         it('should not export keypair when no keys are set', () => {
             const emptyWallet = new PeerWallet();
             expect(() => emptyWallet.exportToFile('./wallet.json')).to.throw('No key pair found');
+        });
+    });
+
+    describe('Verify Only Mode', () => {
+        it('should not generate key pair when isVerifyOnly is true', () => {
+            const errorMsg = 'This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair'
+            const message = 'Hello, world!';
+            const verifyOnlyWallet = new PeerWallet({ isVerifyOnly: true });
+            const keyPair = {
+                publicKey: "82444d4f8f042ec06bbfba4f0b01043a5fdb03e8a8481d740b964563c0f91868",
+                secretKey: "38ff0b5c840266901050964857c54b9f92836bc60383277a788084192ea5a2dc82444d4f8f042ec06bbfba4f0b01043a5fdb03e8a8481d740b964563c0f91868"
+            };
+
+            expect(verifyOnlyWallet.isVerifyOnly).to.be.true;
+            expect(verifyOnlyWallet.publicKey).to.be.null;
+
+            expect(() => verifyOnlyWallet.keyPair = keyPair).to.throw(errorMsg);
+            expect(() => verifyOnlyWallet.generateKeyPair()).to.throw(errorMsg);
+            expect(() => verifyOnlyWallet.sign(message)).to.throw(errorMsg);
+            expect(() => verifyOnlyWallet.exportToFile('./wallet.json')).to.throw('No key pair found');
+        });
+
+        it('should verify a message signature when isVerifyOnly is true', () => {
+            const message = 'Hello, world!';
+            const signature = wallet.sign(message);
+            const verifyOnlyWallet = new PeerWallet({ isVerifyOnly: true });
+            const isValid = verifyOnlyWallet.verify(signature, message, wallet.publicKey);
+            expect(isValid).to.be.true;
         });
     });
 });
