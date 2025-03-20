@@ -88,6 +88,28 @@ describe('Wallet', () => {
             expect(isValid).to.be.true;
         });
 
+        it('should sign and verify a message signature with external private key', () => {
+            const message = 'Hello, world!';
+            const keyPair = {
+                publicKey: "82444d4f8f042ec06bbfba4f0b01043a5fdb03e8a8481d740b964563c0f91868",
+                secretKey: "38ff0b5c840266901050964857c54b9f92836bc60383277a788084192ea5a2dc82444d4f8f042ec06bbfba4f0b01043a5fdb03e8a8481d740b964563c0f91868"
+            };
+            const signature = wallet.sign(Buffer.from(message), Buffer.from(keyPair.secretKey, 'hex'));
+            const isValid = wallet.verify(signature, message, keyPair.publicKey);
+            expect(isValid).to.be.true;
+        });
+
+        it('should sign and verify a message signature where secret key is external and validation arguments are a Buffer type', () => {
+            const message = 'Hello, world!';
+            const keyPair = {
+                publicKey: "82444d4f8f042ec06bbfba4f0b01043a5fdb03e8a8481d740b964563c0f91868",
+                secretKey: "38ff0b5c840266901050964857c54b9f92836bc60383277a788084192ea5a2dc82444d4f8f042ec06bbfba4f0b01043a5fdb03e8a8481d740b964563c0f91868"
+            };
+            const signature = wallet.sign(Buffer.from(message), Buffer.from(keyPair.secretKey, 'hex'));
+            const isValid = wallet.verify(Buffer.from(signature, 'hex'), Buffer.from(message), Buffer.from(keyPair.publicKey, 'hex'));
+            expect(isValid).to.be.true;
+        });
+
         it('should verify a signature even with empty key pair', () => {
             const emptyWallet = new PeerWallet();
             const message = 'Hello, world!';

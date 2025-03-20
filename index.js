@@ -46,15 +46,15 @@ class Wallet {
 
     /**
      * Verifies a message signature.
-     * @param {string} signature - The signature in hex format.
-     * @param {string} message - The message to verify.
-     * @param {string} publicKey - The public key in hex format.
+     * @param {string || Buffer} signature - The signature in hex or Buffer format.
+     * @param {string || Buffer} message - The message to verify in string or Buffer.
+     * @param {string || Buffer} publicKey - The public key in hex or Buffer format.
      * @returns {boolean} True if the signature is valid, false otherwise.
      */
     verify(signature, message, publicKey) {
-        const signatureBuffer = Buffer.from(signature, 'hex');
-        const messageBuffer = Buffer.from(message);
-        const publicKeyBuffer = Buffer.from(publicKey, 'hex');
+        const signatureBuffer = Buffer.isBuffer(signature) ? signature : Buffer.from(signature, 'hex');
+        const messageBuffer = Buffer.isBuffer(message) ? message : Buffer.from(message);
+        const publicKeyBuffer = Buffer.isBuffer(publicKey) ? publicKey : Buffer.from(publicKey, 'hex');
         return sodium.crypto_sign_verify_detached(signatureBuffer, messageBuffer, publicKeyBuffer);
     }
 
@@ -94,19 +94,31 @@ class Wallet {
         this.#keyPair.secretKey = secretKey;
     }
 
-    /**
+     /**
      * Signs a message with the stored secret key.
      * @param {string} message - The message to sign.
+     * @param {Buffer} privateKey - The private key to use for signing. If not provided, the stored secret key will be used.
      * @returns {string} The signature in hex format.
      * @throws Will throw an error if the secret key is not set.
      */
-    sign(message) {
-        if (!this.#keyPair.secretKey) {
+    sign(message, privateKey = null) {
+        if (!this.#keyPair.secretKey && !privateKey) {
             throw new Error('No key pair found. Please, generate a key pair first');
         }
-        const messageBuffer = Buffer.from(message);
+
+        const keyToUse = privateKey || this.#keyPair.secretKey;
+
+        if (!Buffer.isBuffer(keyToUse)) {
+            throw new Error('Private key must be a Buffer');
+        }
+
+        if (keyToUse.length !== sodium.crypto_sign_SECRETKEYBYTES) {
+            throw new Error('Invalid private key length');
+        }
+        
+        const messageBuffer = Buffer.isBuffer(message) ? message : Buffer.from(message);
         const signature = Buffer.alloc(sodium.crypto_sign_BYTES);
-        sodium.crypto_sign_detached(signature, messageBuffer, this.#keyPair.secretKey);
+        sodium.crypto_sign_detached(signature, messageBuffer, keyToUse);
         return signature.toString('hex');
     }
 
