@@ -1,6 +1,6 @@
 {
   "name": "trac-wallet",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "main": "index.js",
   "type": "module",
   "scripts": {
@@ -18,5 +18,9 @@
   "devDependencies": {
     "chai": "^5.2.0",
     "mocha": "^11.1.0"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
   }
 }

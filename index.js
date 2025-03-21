@@ -32,6 +32,13 @@ class Wallet {
         return this.#keyPair.publicKey.toString('hex');
     }
 
+    get secretKey() {
+        if (!this.#keyPair.secretKey) {
+            return null;
+        }
+        return this.#keyPair.secretKey.toString('hex');
+    }
+
     /**
      * Sets the key pair directly
      * @param {Object} keyPair - An object containing the publicKey and secretKey as hex strings.
