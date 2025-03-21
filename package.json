@@ -1,6 +1,6 @@
 {
-  "name": "ed25519-key-generator",
-  "version": "1.0.0",
+  "name": "trac-wallet",
+  "version": "0.0.1",
   "main": "index.js",
   "type": "module",
   "scripts": {
@@ -14,5 +14,9 @@
     "bip39": "3.1.0",
     "crypto": "1.0.1",
     "sodium-native": "4.3.3"
+  },
+  "devDependencies": {
+    "chai": "^5.2.0",
+    "mocha": "^11.1.0"
   }
 }

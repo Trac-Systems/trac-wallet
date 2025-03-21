@@ -1,40 +1,382 @@
 import * as bip39 from 'bip39';
 import sodium from 'sodium-native';
 import * as crypto from 'crypto';
+import fs from 'node:fs';
+import readline from 'readline';
 
 const size = 128; // 12 words. Size equal to 256 is 24 words.
 
-export function sanitizeMnemonic(mnemonic) {
-    // TODO: Implement better sanitization by checking if 
-    //  - All resulting words are valid
-    //  - There are no invalid characters
-    //  - There are exactly 12 words
-    //  - etc.
-    if (!mnemonic) {
-        return undefined;
+// TODO: Decide if this should continue being an internal-only class or if it should be exported
+class Wallet {
+    #keyPair; // TODO: This needs to be in a secure storage, not in memory. This is just a temporary solution.
+    #isVerifyOnly;
+
+    /**
+     * Creates a new Wallet instance.
+     * @param {Object} options - An object containing the following properties:
+     * @param {string} options.mnemonic - The mnemonic phrase to use for key generation.
+     * @param {boolean} options.isVerifyOnly - A flag to indicate if the wallet will only be used for verifying signatures. If true, the key pair will not be generated.
+     */
+    constructor(options = {}) {
+        this.#isVerifyOnly = options.isVerifyOnly || false;
+
+        this.#keyPair = {
+            publicKey: null,
+            secretKey: null
+        };
+
+        if (options.mnemonic && !this.#isVerifyOnly) {
+            this.generateKeyPair(options.mnemonic);
+        }
     }
-    return mnemonic.toLowerCase().trim().split(' ').filter(word => word.trim()).join(' ');
+
+    /**
+     * Returns the public key as a hex string.
+     * @returns {string|null} The public key in hex format or null if not set.
+     */
+    get publicKey() {
+        if (!this.#keyPair.publicKey) {
+            return null;
+        }
+        return this.#keyPair.publicKey.toString('hex');
+    }
+
+    /**
+     * Returns the flag indicating if the wallet is set to verify only mode.
+     * @returns {boolean} True if the wallet is set to verify only, false otherwise.
+     */
+    get isVerifyOnly() {
+        return this.#isVerifyOnly;
+    }
+
+    /**
+     * Sets the key pair directly. If the wallet is set to verifyOnly mode, it will return to standard mode
+     * @param {Object} keyPair - An object containing the publicKey and secretKey as hex strings.
+     * @throws Will throw an error if the wallet is set to verify only.
+     * @throws Will throw an error if the key pair is invalid.
+     */
+    set keyPair(keyPair) {
+        if (this.#isVerifyOnly) {
+            throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
+        }
+        if (!keyPair || !keyPair.publicKey || !keyPair.secretKey) {
+            throw new Error('Invalid key pair. Please provide a valid object with publicKey and secretKey');
+        }
+        this.#keyPair = this.sanitizeKeyPair(keyPair.publicKey, keyPair.secretKey);
+    }
+
+    /**
+     * Verifies a message signature.
+     * @param {string || Buffer} signature - The signature in hex or Buffer format.
+     * @param {string || Buffer} message - The message to verify in string or Buffer.
+     * @param {string || Buffer} publicKey - The public key in hex or Buffer format.
+     * @returns {boolean} True if the signature is valid, false otherwise.
+     */
+    verify(signature, message, publicKey) {
+        const signatureBuffer = Buffer.isBuffer(signature) ? signature : Buffer.from(signature, 'hex');
+        const messageBuffer = Buffer.isBuffer(message) ? message : Buffer.from(message);
+        const publicKeyBuffer = Buffer.isBuffer(publicKey) ? publicKey : Buffer.from(publicKey, 'hex');
+        return sodium.crypto_sign_verify_detached(signatureBuffer, messageBuffer, publicKeyBuffer);
+    }
+
+    /**
+     * Generates a new mnemonic phrase.
+     * @returns {string} A new mnemonic phrase.
+     */
+    generateMnemonic() {
+        return bip39.generateMnemonic(size);
+    }
+
+    /**
+     * Generates a key pair from a mnemonic phrase. If the wallet is set to verifyOnly mode, it will return to standard mode
+     * @param {string} mnemonic - The mnemonic phrase.
+     * @throws Will throw an error if the wallet is set to verify only.
+     * @throws Will throw an error if the mnemonic is invalid.
+     */
+    generateKeyPair(mnemonic) {
+        if (this.#isVerifyOnly) {
+            throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
+        }
+
+        // TODO: Include a warning stating that the previous keys will be deleted if a new mnemonic is provided
+        let safeMnemonic = this.sanitizeMnemonic(mnemonic);
+
+        // TODO: Should we just return an error instead? The user will not be able backup the keys if we do this
+        if (!safeMnemonic) {
+            safeMnemonic = bip39.generateMnemonic(size);
+        }
+
+        const seed = bip39.mnemonicToSeedSync(safeMnemonic);
+
+        const publicKey = Buffer.alloc(sodium.crypto_sign_PUBLICKEYBYTES);
+        const secretKey = Buffer.alloc(sodium.crypto_sign_SECRETKEYBYTES);
+
+        const seed32 = crypto.createHash('sha256').update(seed).digest();
+        const seed32buffer = Buffer.from(seed32);
+
+        sodium.crypto_sign_seed_keypair(publicKey, secretKey, seed32buffer);
+
+        this.#keyPair.publicKey = publicKey;
+        this.#keyPair.secretKey = secretKey;
+    }
+
+     /**
+     * Signs a message with the stored secret key.
+     * @param {string} message - The message to sign.
+     * @param {Buffer} privateKey - The private key to use for signing. If not provided, the stored secret key will be used.
+     * @returns {string} The signature in hex format.
+     * @throws Will throw an error if the wallet is set to verify only.
+     * @throws Will throw an error if the secret key is not set.
+     */
+    sign(message, privateKey = null) {
+        if (this.#isVerifyOnly) {
+            throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
+        }
+
+        if (!this.#keyPair.secretKey && !privateKey) {
+            throw new Error('No key pair found. Please, generate a key pair first');
+        }
+
+        const keyToUse = privateKey || this.#keyPair.secretKey;
+
+        if (!Buffer.isBuffer(keyToUse)) {
+            throw new Error('Private key must be a Buffer');
+        }
+
+        if (keyToUse.length !== sodium.crypto_sign_SECRETKEYBYTES) {
+            throw new Error('Invalid private key length');
+        }
+        
+        const messageBuffer = Buffer.isBuffer(message) ? message : Buffer.from(message);
+        const signature = Buffer.alloc(sodium.crypto_sign_BYTES);
+        sodium.crypto_sign_detached(signature, messageBuffer, keyToUse);
+        return signature.toString('hex');
+    }
+
+    /**
+     * Exports the key pair to a JSON file.
+     * @param {string} filePath - The path to the file where the keys will be saved.
+     * @throws Will throw an error if the key pair is not set.
+     */
+    exportToFile(filePath) {
+        if (!this.#keyPair.secretKey) {
+            throw new Error('No key pair found');
+        }
+        const data = {
+            publicKey: this.#keyPair.publicKey.toString('hex'),
+            secretKey: this.#keyPair.secretKey.toString('hex')
+        };
+        fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    }
+    
+    /**
+     * Imports a key pair from a JSON file. If the wallet is set to verifyOnly mode, it will return to standard mode
+     * @param {string} filePath - The path to the file where the keys are saved.
+     * @throws Will throw an error if the wallet is set to verify only.
+     */
+    importFromFile(filePath) {
+        if (this.#isVerifyOnly) {
+            throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
+        }
+        const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        this.#keyPair = this.sanitizeKeyPair(data.publicKey, data.secretKey);
+        this.#isVerifyOnly = false;
+    }
+
+    /**
+     * Sanitizes and validates a mnemonic phrase.
+     * @param {string} mnemonic - The mnemonic phrase to sanitize.
+     * @returns {string|null} The sanitized mnemonic or null if the input is invalid.
+     * @throws Will throw an error if the mnemonic is invalid.
+     */
+    sanitizeMnemonic(mnemonic) {
+        if (!mnemonic) {
+            return null;
+        }
+        const sanitized = mnemonic.toLowerCase().trim().split(' ').filter(word => word.trim()).join(' ');
+
+        // Check if all words are valid
+        const words = sanitized.split(' ');
+        if (words.length !== 12 || !bip39.validateMnemonic(sanitized)) {
+            throw new Error('Invalid mnemonic. Please, provide a valid 12-word mnemonic');
+        }
+
+        return sanitized;
+    }
+
+    /**
+     * Sanitizes and validates a public key.
+     * @param {string} publicKey - The public key in hex format.
+     * @returns {Buffer} The sanitized public key as a buffer.
+     * @throws Will throw an error if the public key is invalid.
+     */
+    sanitizePublicKey(publicKey) {
+        try {
+            const buffer = Buffer.from(publicKey, 'hex');
+            if (buffer.length !== sodium.crypto_sign_PUBLICKEYBYTES) {
+                throw new Error('Invalid public key length');
+            }
+            return buffer;
+        } catch (error) {
+            throw new Error('Invalid public key format. Please provide a valid hex string');
+        }
+    }
+
+    /**
+     * Sanitizes and validates a secret key.
+     * @param {string} secretKey - The secret key in hex format.
+     * @returns {Buffer} The sanitized secret key as a buffer.
+     * @throws Will throw an error if the secret key is invalid.
+     */
+    sanitizeSecretKey(secretKey) {
+        try {
+            const buffer = Buffer.from(secretKey, 'hex');
+            if (buffer.length !== sodium.crypto_sign_SECRETKEYBYTES) {
+                throw new Error('Invalid secret key length');
+            }
+            return buffer;
+        } catch (error) {
+            throw new Error('Invalid secret key format. Please provide a valid hex string');
+        }
+    }
+
+    /**
+     * Sanitizes and validates a key pair.
+     * @param {string} publicKey - The public key in hex format.
+     * @param {string} secretKey - The secret key in hex format.
+     * @returns {Object} An object containing the sanitized publicKey and secretKey as buffers.
+     */
+    sanitizeKeyPair(publicKey, secretKey) {
+        return {
+            publicKey: this.sanitizePublicKey(publicKey),
+            secretKey: this.sanitizeSecretKey(secretKey)
+        };
+    }
 }
 
-export function generateKeyPair(mnemonicInput) {
-    let mnemonic = sanitizeMnemonic(mnemonicInput);
-    if (!mnemonic) {
-        mnemonic = bip39.generateMnemonic(size);
+// TODO: this wallet needs to be separated into its own repo at some point
+class PeerWallet extends Wallet {
+    #isVerifyOnly;
+
+    constructor(options = {}) {
+        super(options);
+        this.#isVerifyOnly = options.isVerifyOnly || false;
     }
-    
-    const seed = bip39.mnemonicToSeedSync(mnemonic);
-    
-    const publicKey = Buffer.alloc(sodium.crypto_sign_PUBLICKEYBYTES);
-    const secretKey = Buffer.alloc(sodium.crypto_sign_SECRETKEYBYTES);
-    
-    const seed32 = crypto.createHash('sha256').update(seed).digest();
-    const seed32buffer = Buffer.from(seed32);
-    
-    sodium.crypto_sign_seed_keypair(publicKey, secretKey, seed32buffer);
-    
-    return {
-        mnemonic: mnemonic,
-        publicKey: publicKey,
-        secretKey: secretKey
+
+    // Imports a keypair from a file or generates a new one if it doesn't exist
+    async initKeyPair(filePath) {
+        // TODO: User shouldn't be allowed to store it in unencrypted form. ASK for a password to encrypt it. ENCRYPT(HASH(PASSWORD,SALT),FILE)/DECRYPT(HASH(PASSWORD,SALT),ENCRYPTED_FILE)?
+        if (this.#isVerifyOnly) {
+            throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
+        }
+        
+        if (!filePath) {
+            throw new Error("File path is required");
+        }
+        
+        try {
+            // Check if the key file exists
+            if (fs.existsSync(filePath)) {
+                const keyPair = JSON.parse(fs.readFileSync(filePath));
+                this.keyPair = {
+                    publicKey: keyPair.publicKey,
+                    secretKey: keyPair.secretKey
+                }
+            } else {
+                console.log("Key file was not found. How do you wish to proceed?");
+                const response = await this.#setupKeypairInteractiveMode();
+
+                switch (response.type) {
+                    case 'keypair':
+                        this.keyPair = response.value;
+                        break;
+                    case 'mnemonic':
+                        let mnemonic = response.value;
+                        if (mnemonic === null) {
+                            mnemonic = this.generateMnemonic();
+                            console.log("This is your mnemonic:\n", mnemonic, "\nPlease back it up in a safe location")
+                        }
+
+                        this.generateKeyPair(mnemonic);
+                        
+                        this.exportToFile(filePath);
+                        console.log("DEBUG: Key pair generated and stored in", filePath);
+                        break;
+                    case 'import':
+                        this.importFromFile(response.value);
+                        break;
+                    default:
+                        console.error("Invalid response type from keypair setup interactive menu");
+                }
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    async #setupKeypairInteractiveMode() {
+        const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout
+        });
+
+        const question = (query) => {
+            return new Promise(resolve => {
+                rl.question(query, resolve);
+            });
+        }
+
+        let response;
+        let choice = '';
+        while (!choice.trim()) {
+            choice = await question("[1]. Generate new mnemonic phrase\n",
+                                    "[2]. Restore keypair from backed up response phrase\n",
+                                    "[3]. Input a keypair manually\n",
+                                    "[4]. Import keypair from file\n",
+                                    "Your choice(1 / 2/ 3): "
+            );
+            switch (choice) {
+                case '1':
+                    response = {
+                        type: 'mnemonic',
+                        value: null // Will be generated by the wallet
+                    }
+                    break;
+                case '2':
+                    const mnemonicInput = await question("Enter your mnemonic phrase: ");
+                    response = {
+                        type: 'mnemonic',
+                        value: this.sanitizeMnemonic(mnemonicInput) // This is going to be sanitized by the wallet
+                    }
+                    break;
+                case '3':
+                    const publicKey = await question("Enter your public key: ");
+                    const secretKey = await question("Enter your secret key: ");
+
+                    response = {
+                        type: 'keypair',
+                        value: {
+                            publicKey: publicKey, //This is going to be sanitized by the wallet
+                            secretKey: secretKey //This is  going to be sanitized by the wallet
+                        }
+                    }
+                    break;
+                case '4':
+                    const filePath = await question("Enter the path to the keypair file: ");
+                    response = {
+                        type: 'import',
+                        value: filePath
+                    }
+                    break;
+                default:
+                    console.log("Invalid choice. Please select again");
+                    choice = '';
+                    break;
+            }
+        }
+        rl.close();
+        return response;
     }
 }
+
+export default PeerWallet;
