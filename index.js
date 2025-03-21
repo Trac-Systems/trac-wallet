@@ -41,6 +41,13 @@ class Wallet {
         return this.#keyPair.publicKey.toString('hex');
     }
 
+    get secretKey() {
+        if (!this.#keyPair.secretKey) {
+            return null;
+        }
+        return this.#keyPair.secretKey.toString('hex');
+    }
+
     /**
      * Returns the flag indicating if the wallet is set to verify only mode.
      * @returns {boolean} True if the wallet is set to verify only, false otherwise.
