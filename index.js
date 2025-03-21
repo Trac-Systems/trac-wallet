@@ -120,14 +120,14 @@ class Wallet {
         this.#keyPair.secretKey = secretKey;
     }
 
-     /**
-     * Signs a message with the stored secret key.
-     * @param {string} message - The message to sign.
-     * @param {Buffer} privateKey - The private key to use for signing. If not provided, the stored secret key will be used.
-     * @returns {string} The signature in hex format.
-     * @throws Will throw an error if the wallet is set to verify only.
-     * @throws Will throw an error if the secret key is not set.
-     */
+    /**
+    * Signs a message with the stored secret key.
+    * @param {string} message - The message to sign.
+    * @param {Buffer} privateKey - The private key to use for signing. If not provided, the stored secret key will be used.
+    * @returns {string} The signature in hex format.
+    * @throws Will throw an error if the wallet is set to verify only.
+    * @throws Will throw an error if the secret key is not set.
+    */
     sign(message, privateKey = null) {
         if (this.#isVerifyOnly) {
             throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
@@ -146,7 +146,7 @@ class Wallet {
         if (keyToUse.length !== sodium.crypto_sign_SECRETKEYBYTES) {
             throw new Error('Invalid private key length');
         }
-        
+
         const messageBuffer = Buffer.isBuffer(message) ? message : Buffer.from(message);
         const signature = Buffer.alloc(sodium.crypto_sign_BYTES);
         sodium.crypto_sign_detached(signature, messageBuffer, keyToUse);
@@ -168,7 +168,7 @@ class Wallet {
         };
         fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
     }
-    
+
     /**
      * Imports a key pair from a JSON file. If the wallet is set to verifyOnly mode, it will return to standard mode
      * @param {string} filePath - The path to the file where the keys are saved.
@@ -269,11 +269,11 @@ class PeerWallet extends Wallet {
         if (this.#isVerifyOnly) {
             throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
         }
-        
+
         if (!filePath) {
             throw new Error("File path is required");
         }
-        
+
         try {
             // Check if the key file exists
             if (fs.existsSync(filePath)) {
@@ -298,7 +298,7 @@ class PeerWallet extends Wallet {
                         }
 
                         this.generateKeyPair(mnemonic);
-                        
+
                         this.exportToFile(filePath);
                         console.log("DEBUG: Key pair generated and stored in", filePath);
                         break;
@@ -329,11 +329,11 @@ class PeerWallet extends Wallet {
         let response;
         let choice = '';
         while (!choice.trim()) {
-            choice = await question("[1]. Generate new mnemonic phrase\n",
-                                    "[2]. Restore keypair from backed up response phrase\n",
-                                    "[3]. Input a keypair manually\n",
-                                    "[4]. Import keypair from file\n",
-                                    "Your choice(1 / 2/ 3): "
+            choice = await question("[1]. Generate new mnemonic phrase\n" +
+                "[2]. Restore keypair from backed up response phrase\n" +
+                "[3]. Input a keypair manually\n" +
+                "[4]. Import keypair from file\n" +
+                "Your choice(1 / 2/ 3/ 4): "
             );
             switch (choice) {
                 case '1':
