@@ -1,8 +1,9 @@
-import * as bip39 from 'bip39';
+import {generateMnemonic, validateMnemonic, mnemonicToSeed} from 'bip39-mnemonic';
 import sodium from 'sodium-native';
-import * as crypto from 'crypto';
-import fs from 'node:fs';
+import {createHash} from 'crypto';
+import fs from 'fs';
 import readline from 'readline';
+import tty from 'tty'
 
 const size = 128; // 12 words. Size equal to 256 is 24 words.
 
@@ -80,10 +81,13 @@ class Wallet {
      * @returns {boolean} True if the signature is valid, false otherwise.
      */
     verify(signature, message, publicKey) {
-        const signatureBuffer = Buffer.isBuffer(signature) ? signature : Buffer.from(signature, 'hex');
-        const messageBuffer = Buffer.isBuffer(message) ? message : Buffer.from(message);
-        const publicKeyBuffer = Buffer.isBuffer(publicKey) ? publicKey : Buffer.from(publicKey, 'hex');
-        return sodium.crypto_sign_verify_detached(signatureBuffer, messageBuffer, publicKeyBuffer);
+        try{
+            const signatureBuffer = Buffer.isBuffer(signature) ? signature : Buffer.from(signature, 'hex');
+            const messageBuffer = Buffer.isBuffer(message) ? message : Buffer.from(message);
+            const publicKeyBuffer = Buffer.isBuffer(publicKey) ? publicKey : Buffer.from(publicKey, 'hex');
+            return sodium.crypto_sign_verify_detached(signatureBuffer, messageBuffer, publicKeyBuffer);
+        } catch(e) { console.log(e) }
+        return false;
     }
 
     /**
@@ -91,7 +95,7 @@ class Wallet {
      * @returns {string} A new mnemonic phrase.
      */
     generateMnemonic() {
-        return bip39.generateMnemonic(size);
+        return generateMnemonic(size);
     }
 
     /**
@@ -100,7 +104,7 @@ class Wallet {
      * @throws Will throw an error if the wallet is set to verify only.
      * @throws Will throw an error if the mnemonic is invalid.
      */
-    generateKeyPair(mnemonic) {
+    async generateKeyPair(mnemonic) {
         if (this.#isVerifyOnly) {
             throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
         }
@@ -110,15 +114,15 @@ class Wallet {
 
         // TODO: Should we just return an error instead? The user will not be able backup the keys if we do this
         if (!safeMnemonic) {
-            safeMnemonic = bip39.generateMnemonic(size);
+            safeMnemonic = generateMnemonic(size);
         }
 
-        const seed = bip39.mnemonicToSeedSync(safeMnemonic);
+        const seed = await mnemonicToSeed(safeMnemonic);
 
         const publicKey = Buffer.alloc(sodium.crypto_sign_PUBLICKEYBYTES);
         const secretKey = Buffer.alloc(sodium.crypto_sign_SECRETKEYBYTES);
 
-        const seed32 = crypto.createHash('sha256').update(seed).digest();
+        const seed32 = createHash('sha256').update(seed).digest();
         const seed32buffer = Buffer.from(seed32);
 
         sodium.crypto_sign_seed_keypair(publicKey, secretKey, seed32buffer);
@@ -127,7 +131,7 @@ class Wallet {
         this.#keyPair.secretKey = secretKey;
     }
 
-     /**
+    /**
      * Signs a message with the stored secret key.
      * @param {string} message - The message to sign.
      * @param {Buffer} privateKey - The private key to use for signing. If not provided, the stored secret key will be used.
@@ -153,7 +157,7 @@ class Wallet {
         if (keyToUse.length !== sodium.crypto_sign_SECRETKEYBYTES) {
             throw new Error('Invalid private key length');
         }
-        
+
         const messageBuffer = Buffer.isBuffer(message) ? message : Buffer.from(message);
         const signature = Buffer.alloc(sodium.crypto_sign_BYTES);
         sodium.crypto_sign_detached(signature, messageBuffer, keyToUse);
@@ -175,7 +179,7 @@ class Wallet {
         };
         fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
     }
-    
+
     /**
      * Imports a key pair from a JSON file. If the wallet is set to verifyOnly mode, it will return to standard mode
      * @param {string} filePath - The path to the file where the keys are saved.
@@ -204,7 +208,7 @@ class Wallet {
 
         // Check if all words are valid
         const words = sanitized.split(' ');
-        if (words.length !== 12 || !bip39.validateMnemonic(sanitized)) {
+        if (!validateMnemonic(sanitized)) {
             throw new Error('Invalid mnemonic. Please, provide a valid 12-word mnemonic');
         }
 
@@ -276,11 +280,11 @@ class PeerWallet extends Wallet {
         if (this.#isVerifyOnly) {
             throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
         }
-        
+
         if (!filePath) {
             throw new Error("File path is required");
         }
-        
+
         try {
             // Check if the key file exists
             if (fs.existsSync(filePath)) {
@@ -304,8 +308,8 @@ class PeerWallet extends Wallet {
                             console.log("This is your mnemonic:\n", mnemonic, "\nPlease back it up in a safe location")
                         }
 
-                        this.generateKeyPair(mnemonic);
-                        
+                        await this.generateKeyPair(mnemonic);
+
                         this.exportToFile(filePath);
                         console.log("DEBUG: Key pair generated and stored in", filePath);
                         break;
@@ -323,8 +327,8 @@ class PeerWallet extends Wallet {
 
     async #setupKeypairInteractiveMode() {
         const rl = readline.createInterface({
-            input: process.stdin,
-            output: process.stdout
+            input: new tty.ReadStream(0),
+            output: new tty.WriteStream(1)
         });
 
         const question = (query) => {
@@ -335,54 +339,63 @@ class PeerWallet extends Wallet {
 
         let response;
         let choice = '';
-        while (!choice.trim()) {
-            choice = await question("[1]. Generate new mnemonic phrase\n",
-                                    "[2]. Restore keypair from backed up response phrase\n",
-                                    "[3]. Input a keypair manually\n",
-                                    "[4]. Import keypair from file\n",
-                                    "Your choice(1 / 2/ 3): "
-            );
-            switch (choice) {
-                case '1':
-                    response = {
-                        type: 'mnemonic',
-                        value: null // Will be generated by the wallet
-                    }
-                    break;
-                case '2':
-                    const mnemonicInput = await question("Enter your mnemonic phrase: ");
-                    response = {
-                        type: 'mnemonic',
-                        value: this.sanitizeMnemonic(mnemonicInput) // This is going to be sanitized by the wallet
-                    }
-                    break;
-                case '3':
-                    const publicKey = await question("Enter your public key: ");
-                    const secretKey = await question("Enter your secret key: ");
+        console.log("[1]. Generate new mnemonic phrase\n",
+            "[2]. Restore keypair from backed up response phrase\n",
+            "[3]. Input a keypair manually\n",
+            "[4]. Import keypair from file\n",
+            "Your choice(1 / 2/ 3): "
+        );
+        rl.on('line', async (input) => {
+            choice = input;
+            rl.close();
+        });
+        while(!choice.trim()){
+            await this.sleep(1000);
+        }
+        switch (choice) {
+            case '1':
+                response = {
+                    type: 'mnemonic',
+                    value: null // Will be generated by the wallet
+                }
+                break;
+            case '2':
+                const mnemonicInput = await question("Enter your mnemonic phrase: ");
+                response = {
+                    type: 'mnemonic',
+                    value: this.sanitizeMnemonic(mnemonicInput) // This is going to be sanitized by the wallet
+                }
+                break;
+            case '3':
+                const publicKey = await question("Enter your public key: ");
+                const secretKey = await question("Enter your secret key: ");
 
-                    response = {
-                        type: 'keypair',
-                        value: {
-                            publicKey: publicKey, //This is going to be sanitized by the wallet
-                            secretKey: secretKey //This is  going to be sanitized by the wallet
-                        }
+                response = {
+                    type: 'keypair',
+                    value: {
+                        publicKey: publicKey, //This is going to be sanitized by the wallet
+                        secretKey: secretKey //This is  going to be sanitized by the wallet
                     }
-                    break;
-                case '4':
-                    const filePath = await question("Enter the path to the keypair file: ");
-                    response = {
-                        type: 'import',
-                        value: filePath
-                    }
-                    break;
-                default:
-                    console.log("Invalid choice. Please select again");
-                    choice = '';
-                    break;
-            }
+                }
+                break;
+            case '4':
+                const filePath = await question("Enter the path to the keypair file: ");
+                response = {
+                    type: 'import',
+                    value: filePath
+                }
+                break;
+            default:
+                console.log("Invalid choice. Please select again");
+                choice = '';
+                break;
         }
         rl.close();
         return response;
+    }
+
+    async sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 }
 
