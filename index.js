@@ -1,9 +1,10 @@
 import {generateMnemonic, validateMnemonic, mnemonicToSeed} from 'bip39-mnemonic';
 import sodium from 'sodium-native';
-import {createHash} from 'crypto';
 import fs from 'fs';
 import readline from 'readline';
 import tty from 'tty'
+import b4a from 'b4a';
+import crypto from 'crypto'
 
 const size = 128; // 12 words. Size equal to 256 is 24 words.
 
@@ -82,9 +83,9 @@ class Wallet {
      */
     verify(signature, message, publicKey) {
         try{
-            const signatureBuffer = Buffer.isBuffer(signature) ? signature : Buffer.from(signature, 'hex');
-            const messageBuffer = Buffer.isBuffer(message) ? message : Buffer.from(message);
-            const publicKeyBuffer = Buffer.isBuffer(publicKey) ? publicKey : Buffer.from(publicKey, 'hex');
+            const signatureBuffer = b4a.isBuffer(signature) ? signature : b4a.from(signature, 'hex');
+            const messageBuffer = b4a.isBuffer(message) ? message : b4a.from(message);
+            const publicKeyBuffer = b4a.isBuffer(publicKey) ? publicKey : b4a.from(publicKey, 'hex');
             return sodium.crypto_sign_verify_detached(signatureBuffer, messageBuffer, publicKeyBuffer);
         } catch(e) { console.log(e) }
         return false;
@@ -96,6 +97,33 @@ class Wallet {
      */
     generateMnemonic() {
         return generateMnemonic(size);
+    }
+
+    async createHash(type, message){
+        if(type === 'sha256'){
+            const out = b4a.alloc(sodium.crypto_hash_sha256_BYTES);
+            sodium.crypto_hash_sha256(out, b4a.from(message));
+            return b4a.toString(out, 'hex');
+        }
+        let createHash = null;
+        if(global.Pear !== undefined){
+            let _type = '';
+            switch(type.toLowerCase()){
+                case 'sha1': _type = 'SHA-1'; break;
+                case 'sha384': _type = 'SHA-384'; break;
+                case 'sha512': _type = 'SHA-512'; break;
+                default: throw new Error('Unsupported algorithm.');
+            }
+            const encoder = new TextEncoder();
+            const data = encoder.encode(message);
+            const hash = await crypto.subtle.digest(_type, data);
+            const hashArray = Array.from(new Uint8Array(hash));
+            return hashArray
+                .map((b) => b.toString(16).padStart(2, "0"))
+                .join("");
+        } else {
+            return crypto.createHash(type).update(message).digest('hex')
+        }
     }
 
     /**
@@ -119,13 +147,12 @@ class Wallet {
 
         const seed = await mnemonicToSeed(safeMnemonic);
 
-        const publicKey = Buffer.alloc(sodium.crypto_sign_PUBLICKEYBYTES);
-        const secretKey = Buffer.alloc(sodium.crypto_sign_SECRETKEYBYTES);
+        const publicKey = b4a.alloc(sodium.crypto_sign_PUBLICKEYBYTES);
+        const secretKey = b4a.alloc(sodium.crypto_sign_SECRETKEYBYTES);
 
-        const seed32 = createHash('sha256').update(seed).digest();
-        const seed32buffer = Buffer.from(seed32);
+        const seed32 = b4a.from(await this.createHash('sha256', seed), 'hex');
 
-        sodium.crypto_sign_seed_keypair(publicKey, secretKey, seed32buffer);
+        sodium.crypto_sign_seed_keypair(publicKey, secretKey, seed32);
 
         this.#keyPair.publicKey = publicKey;
         this.#keyPair.secretKey = secretKey;
@@ -150,7 +177,7 @@ class Wallet {
 
         const keyToUse = privateKey || this.#keyPair.secretKey;
 
-        if (!Buffer.isBuffer(keyToUse)) {
+        if (!b4a.isBuffer(keyToUse)) {
             throw new Error('Private key must be a Buffer');
         }
 
@@ -158,8 +185,8 @@ class Wallet {
             throw new Error('Invalid private key length');
         }
 
-        const messageBuffer = Buffer.isBuffer(message) ? message : Buffer.from(message);
-        const signature = Buffer.alloc(sodium.crypto_sign_BYTES);
+        const messageBuffer = b4a.isBuffer(message) ? message : b4a.from(message);
+        const signature = b4a.alloc(sodium.crypto_sign_BYTES);
         sodium.crypto_sign_detached(signature, messageBuffer, keyToUse);
         return signature.toString('hex');
     }
@@ -223,7 +250,7 @@ class Wallet {
      */
     sanitizePublicKey(publicKey) {
         try {
-            const buffer = Buffer.from(publicKey, 'hex');
+            const buffer = b4a.from(publicKey, 'hex');
             if (buffer.length !== sodium.crypto_sign_PUBLICKEYBYTES) {
                 throw new Error('Invalid public key length');
             }
@@ -241,7 +268,7 @@ class Wallet {
      */
     sanitizeSecretKey(secretKey) {
         try {
-            const buffer = Buffer.from(secretKey, 'hex');
+            const buffer = b4a.from(secretKey, 'hex');
             if (buffer.length !== sodium.crypto_sign_SECRETKEYBYTES) {
                 throw new Error('Invalid secret key length');
             }
