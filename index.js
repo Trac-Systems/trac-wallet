@@ -1,3 +1,4 @@
+/** @typedef {import('pear-interface')} */
 import {generateMnemonic, validateMnemonic, mnemonicToSeed} from 'bip39-mnemonic';
 import sodium from 'sodium-native';
 import fs from 'fs';
