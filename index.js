@@ -142,7 +142,7 @@ class Wallet {
 
         // TODO: Should we just return an error instead? The user will not be able backup the keys if we do this
         if (!safeMnemonic) {
-            safeMnemonic = generateMnemonic(size);
+            safeMnemonic = generateMnemonic();
         }
 
         const seed = await mnemonicToSeed(safeMnemonic);
