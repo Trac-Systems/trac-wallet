@@ -22,23 +22,23 @@ describe('Wallet', () => {
 
         it('should accept a valid mnemonic input', () => {
             const validMnemonic = 'session attitude weekend sign collect mobile return vacuum pool afraid wagon client';
-            const walletLocal = new PeerWallet({mnemonic: validMnemonic});
+            const walletLocal = new PeerWallet({ mnemonic: validMnemonic });
             expect(walletLocal.publicKey).to.equal('82444d4f8f042ec06bbfba4f0b01043a5fdb03e8a8481d740b964563c0f91868');
         });
 
         it('should throw an error for mnemonic containing less than 12 words', () => {
             const faultyMnemonic = 'session attitude weekend sign collect mobile return vacuum pool afraid wagon';
-            expect(() => new PeerWallet({mnemonic: faultyMnemonic})).to.throw('Invalid mnemonic');
+            expect(() => new PeerWallet({ mnemonic: faultyMnemonic })).to.throw('Invalid mnemonic');
         });
 
         it('should throw an error for mnemonic containing more than 12 words', () => {
             const faultyMnemonic = 'session attitude weekend sign collect mobile return vacuum pool afraid wagon client extra';
-            expect(() => new PeerWallet({mnemonic: faultyMnemonic})).to.throw('Invalid mnemonic');
+            expect(() => new PeerWallet({ mnemonic: faultyMnemonic })).to.throw('Invalid mnemonic');
         });
 
         it('should throw an error for mnemonic containing invalid word', () => {
             const faultyMnemonic = 'session attitude weekend sign collect mobile return vacuum pool afraid wagon invalid';
-            expect(() => new PeerWallet({mnemonic: faultyMnemonic})).to.throw('Invalid mnemonic');
+            expect(() => new PeerWallet({ mnemonic: faultyMnemonic })).to.throw('Invalid mnemonic');
         });
     });
 
@@ -55,7 +55,7 @@ describe('Wallet', () => {
 
         it('should set a valid key pair', () => {
             const mnemonic = 'session attitude weekend sign collect mobile return vacuum pool afraid wagon client';
-            const wallet1 = new PeerWallet({mnemonic: mnemonic});
+            const wallet1 = new PeerWallet({ mnemonic: mnemonic });
             const wallet2 = new PeerWallet();
             const keyPair = {
                 publicKey: "82444d4f8f042ec06bbfba4f0b01043a5fdb03e8a8481d740b964563c0f91868",
