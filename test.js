@@ -16,7 +16,7 @@ describe('Wallet', () => {
         it('should generate a valid mnemonic phrase', () => {
             const mnemonic = wallet.generateMnemonic();
             expect(mnemonic).to.be.a('string');
-            expect(mnemonic.split(' ')).to.have.lengthOf(12);
+            expect(mnemonic.split(' ')).to.have.lengthOf(24);
             expect(bip39.validateMnemonic(mnemonic)).to.be.true;
         });
 
