@@ -1,9 +1,9 @@
 /** @typedef {import('pear-interface')} */
-import {generateMnemonic, validateMnemonic, mnemonicToSeed} from 'bip39-mnemonic';
-import sodium from 'sodium-native';
+import { generateMnemonic, validateMnemonic, mnemonicToSeed } from 'bip39-mnemonic';
+import { sodium } from './env.js'
 import fs from 'fs';
 import readline from 'readline';
-import tty from 'tty'
+import tty from 'tty';
 import b4a from 'b4a';
 
 const size = 128; // 12 words. Size equal to 256 is 24 words.
@@ -82,12 +82,12 @@ class Wallet {
      * @returns {boolean} True if the signature is valid, false otherwise.
      */
     verify(signature, message, publicKey) {
-        try{
+        try {
             const signatureBuffer = b4a.isBuffer(signature) ? signature : b4a.from(signature, 'hex');
             const messageBuffer = b4a.isBuffer(message) ? message : b4a.from(message);
             const publicKeyBuffer = b4a.isBuffer(publicKey) ? publicKey : b4a.from(publicKey, 'hex');
             return sodium.crypto_sign_verify_detached(signatureBuffer, messageBuffer, publicKeyBuffer);
-        } catch(e) { console.log(e) }
+        } catch (e) { console.log(e) }
         return false;
     }
 
@@ -99,16 +99,16 @@ class Wallet {
         return generateMnemonic(size);
     }
 
-    async createHash(type, message){
-        if(type === 'sha256'){
+    async createHash(type, message) {
+        if (type === 'sha256') {
             const out = b4a.alloc(sodium.crypto_hash_sha256_BYTES);
             sodium.crypto_hash_sha256(out, b4a.from(message));
             return b4a.toString(out, 'hex');
         }
         let createHash = null;
-        if(global.Pear !== undefined){
+        if (global.Pear !== undefined) {
             let _type = '';
-            switch(type.toLowerCase()){
+            switch (type.toLowerCase()) {
                 case 'sha1': _type = 'SHA-1'; break;
                 case 'sha384': _type = 'SHA-384'; break;
                 case 'sha512': _type = 'SHA-512'; break;
@@ -204,7 +204,7 @@ class Wallet {
             publicKey: this.#keyPair.publicKey.toString('hex'),
             secretKey: this.#keyPair.secretKey.toString('hex')
         };
-        if(mnemonic !== null ){
+        if (mnemonic !== null) {
             data['mnemonic'] = mnemonic;
         }
         fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
