@@ -4,7 +4,8 @@ import PeerWallet from './index.js';
 import * as fs from 'fs';
 import * as bip39 from 'bip39-mnemonic';
 import sodium from 'sodium-native';
-
+import crypto from 'crypto';
+import esmock from 'esmock';
 chai.use(chaiAsPromised)
 const expect = chai.expect;
 
@@ -198,5 +199,49 @@ describe('Wallet', () => {
             const isValid = verifyOnlyWallet.verify(signature, message, wallet.publicKey);
             expect(isValid).to.be.true;
         });
+    });
+});
+
+describe('createHash test for native and browser version', () => {
+    function sha256Browser(message, outputBuffer) {
+        const hash = crypto.createHash('sha256').update(message).digest();
+        hash.copy(outputBuffer);
+    }
+
+    function sha256Native(messageBuffer, outputBuffer) {
+        sodium.crypto_hash_sha256(outputBuffer, messageBuffer);
+    }
+
+    const MSG = '';
+    const EXPECTED = crypto.createHash('sha256').update(MSG).digest('hex');
+
+    it('should give expected result from sha256Browser', async () => {
+        const { default: Wallet } = await esmock('./index.js', {
+            './env.js': {
+                isBrowser: true,
+                sodium: await import('sodium-native'),
+                sha256: sha256Browser
+            }
+        });
+
+        const wallet = new Wallet();
+        const result = await wallet.createHash('sha256', MSG);
+        expect(result).to.equal(EXPECTED);
+    });
+
+    it('should give expected result from sha256Native', async () => {
+        const sodium = await import('sodium-native');
+
+        const { default: Wallet } = await esmock('./index.js', {
+            './env.js': {
+                isBrowser: false,
+                sodium,
+                sha256: sha256Native
+            }
+        });
+
+        const wallet = new Wallet();
+        const result = await wallet.createHash('sha256', MSG);
+        expect(result).to.equal(EXPECTED);
     });
 });

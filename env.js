@@ -18,7 +18,8 @@ async function loadSodium() {
 await loadSodium();
 
 function sha256Browser(message, outputBuffer) {
-    outputBuffer = crypto.createHash('sha256').update(message).digest();
+    const hash = crypto.createHash('sha256').update(message).digest();
+    hash.copy(outputBuffer);
 }
 
 function sha256Native(messageBuffer, outputBuffer) {

@@ -48,6 +48,7 @@
     "child_process": "npm:bare-node-child-process",
     "console": "npm:bare-node-console",
     "crypto": "npm:bare-node-crypto",
+    "esmock": "^2.7.0",
     "events": "npm:bare-node-events",
     "fetch": "npm:bare-node-fetch",
     "fs": "npm:bare-node-fs",
