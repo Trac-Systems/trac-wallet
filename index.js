@@ -28,6 +28,8 @@ class Wallet {
         };
 
         if (options.mnemonic && !this.#isVerifyOnly) {
+            // TODO / WARNING: Calling an async function in a constructor is not recommended.
+            // This may cause errors in production code. Consider refactoring this to use a factory method.
             this.generateKeyPair(options.mnemonic);
         }
     }
@@ -99,13 +101,20 @@ class Wallet {
         return generateMnemonic(size);
     }
 
+    /**
+     * Creates a cryptographic hash of a given message using the specified algorithm.
+     *
+     * @param {string} type - The hash algorithm to use. Supported values: 'sha256', 'sha1', 'sha384', 'sha512'.
+     * @param {string} message - The input message to hash.
+     * @returns {Promise<string>} A promise that resolves to the hash value as a hexadecimal string.
+     * @throws {Error} Throws an error if the algorithm type is unsupported or if hashing fails.
+     */
     async createHash(type, message) {
         if (type === 'sha256') {
             const out = b4a.alloc(sodium.crypto_hash_sha256_BYTES || 32);
             sha256(b4a.from(message), out)
             return b4a.toString(out, 'hex');
         }
-        let createHash = null;
         if (global.Pear !== undefined) {
             let _type = '';
             switch (type.toLowerCase()) {
@@ -237,9 +246,8 @@ class Wallet {
         const sanitized = mnemonic.toLowerCase().trim().split(' ').filter(word => word.trim()).join(' ');
 
         // Check if all words are valid
-        const words = sanitized.split(' ');
         if (!validateMnemonic(sanitized)) {
-            throw new Error('Invalid mnemonic. Please, provide a valid 12-word mnemonic');
+            throw new Error('Invalid mnemonic. Please, provide a valid mnemonic');
         }
 
         return sanitized;
