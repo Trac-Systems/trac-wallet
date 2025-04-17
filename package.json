@@ -75,6 +75,7 @@
   },
   "devDependencies": {
     "chai": "^5.2.0",
+    "chai-as-promised": "^8.0.1",
     "mocha": "^11.1.0"
   },
   "publishConfig": {

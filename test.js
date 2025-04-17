@@ -1,15 +1,25 @@
-import { expect } from 'chai';
+import * as chai from 'chai';
+import chaiAsPromised from 'chai-as-promised';
 import PeerWallet from './index.js';
 import * as fs from 'fs';
-import * as bip39 from 'bip39';
+import * as bip39 from 'bip39-mnemonic';
 import sodium from 'sodium-native';
+
+chai.use(chaiAsPromised)
+const expect = chai.expect;
+
+const buildWallet = async (mnemonic) => {
+    const newWallet = new PeerWallet();
+    await newWallet.generateKeyPair(mnemonic);
+    return newWallet;
+}
 
 describe('Wallet', () => {
     let wallet;
 
-    beforeEach(() => {
+    beforeEach(async () => {
         wallet = new PeerWallet();
-        wallet.generateKeyPair(wallet.generateMnemonic());
+        await wallet.generateKeyPair(wallet.generateMnemonic());
     });
 
     describe('Mnemonic Generation', () => {
@@ -20,25 +30,25 @@ describe('Wallet', () => {
             expect(bip39.validateMnemonic(mnemonic)).to.be.true;
         });
 
-        it('should accept a valid mnemonic input', () => {
-            const validMnemonic = 'session attitude weekend sign collect mobile return vacuum pool afraid wagon client';
-            const walletLocal = new PeerWallet({ mnemonic: validMnemonic });
-            expect(walletLocal.publicKey).to.equal('82444d4f8f042ec06bbfba4f0b01043a5fdb03e8a8481d740b964563c0f91868');
+        it('should accept a valid mnemonic input', async () => {
+            const validMnemonic = 'green ceiling yellow certain brass bottom east scorpion shove nasty business belt turkey target grow grunt stock glimpse man detail guitar goat front dose';
+            const walletLocal = await buildWallet(validMnemonic);
+            expect(walletLocal.publicKey).to.equal('9da26e25076b53adb370630f825917c23600117da83b7cbdca12332aac8c0f21');
         });
 
-        it('should throw an error for mnemonic containing less than 12 words', () => {
-            const faultyMnemonic = 'session attitude weekend sign collect mobile return vacuum pool afraid wagon';
-            expect(() => new PeerWallet({ mnemonic: faultyMnemonic })).to.throw('Invalid mnemonic');
+        it('should throw an error for mnemonic containing less than 24 words', async () => {
+            const faultyMnemonic = 'green ceiling yellow certain brass bottom east scorpion shove nasty business belt turkey target grow grunt stock glimpse man detail guitar goat front';
+            await expect(buildWallet(faultyMnemonic)).to.be.rejectedWith('Invalid mnemonic');
         });
 
-        it('should throw an error for mnemonic containing more than 12 words', () => {
-            const faultyMnemonic = 'session attitude weekend sign collect mobile return vacuum pool afraid wagon client extra';
-            expect(() => new PeerWallet({ mnemonic: faultyMnemonic })).to.throw('Invalid mnemonic');
+        it('should throw an error for mnemonic containing more than 24 words', async () => {
+            const faultyMnemonic = 'green ceiling yellow certain brass bottom east scorpion shove nasty business belt turkey target grow grunt stock glimpse man detail guitar goat front dose wagon';
+            await expect(buildWallet(faultyMnemonic)).to.be.rejectedWith('Invalid mnemonic');
         });
 
-        it('should throw an error for mnemonic containing invalid word', () => {
-            const faultyMnemonic = 'session attitude weekend sign collect mobile return vacuum pool afraid wagon invalid';
-            expect(() => new PeerWallet({ mnemonic: faultyMnemonic })).to.throw('Invalid mnemonic');
+        it('should throw an error for mnemonic containing invalid word', async () => {
+            const faultyMnemonic = 'green ceiling yellow certain brass bottom east scorpion shove nasty business belt turkey target grow grunt stock glimpse man detail guitar goat front invalid';
+            await expect(buildWallet(faultyMnemonic)).to.be.rejectedWith('Invalid mnemonic');
         });
     });
 
@@ -53,13 +63,13 @@ describe('Wallet', () => {
             expect(emptyWallet.publicKey).to.be.null;
         });
 
-        it('should set a valid key pair', () => {
-            const mnemonic = 'session attitude weekend sign collect mobile return vacuum pool afraid wagon client';
-            const wallet1 = new PeerWallet({ mnemonic: mnemonic });
+        it('should set a valid key pair', async () => {
+            const mnemonic = 'green ceiling yellow certain brass bottom east scorpion shove nasty business belt turkey target grow grunt stock glimpse man detail guitar goat front dose';
+            const wallet1 = await buildWallet(mnemonic);
             const wallet2 = new PeerWallet();
             const keyPair = {
-                publicKey: "82444d4f8f042ec06bbfba4f0b01043a5fdb03e8a8481d740b964563c0f91868",
-                secretKey: "38ff0b5c840266901050964857c54b9f92836bc60383277a788084192ea5a2dc82444d4f8f042ec06bbfba4f0b01043a5fdb03e8a8481d740b964563c0f91868"
+                publicKey: "9da26e25076b53adb370630f825917c23600117da83b7cbdca12332aac8c0f21",
+                secretKey: "538e9fdca456efec6fa208f99a7f74188f2dc31777b3a40980f22dec377b9a8a9da26e25076b53adb370630f825917c23600117da83b7cbdca12332aac8c0f21"
             };
             wallet2.keyPair = keyPair;
             expect(wallet2.publicKey.toString).to.equal(wallet1.publicKey.toString);
@@ -155,7 +165,7 @@ describe('Wallet', () => {
     });
 
     describe('Verify Only Mode', () => {
-        it('should not generate key pair when isVerifyOnly is true', () => {
+        it('should not generate key pair when isVerifyOnly is true', async () => {
             const errorMsg = 'This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair'
             const message = 'Hello, world!';
             const verifyOnlyWallet = new PeerWallet({ isVerifyOnly: true });
@@ -168,7 +178,7 @@ describe('Wallet', () => {
             expect(verifyOnlyWallet.publicKey).to.be.null;
 
             expect(() => verifyOnlyWallet.keyPair = keyPair).to.throw(errorMsg);
-            expect(() => verifyOnlyWallet.generateKeyPair()).to.throw(errorMsg);
+            await expect(verifyOnlyWallet.generateKeyPair()).to.be.rejectedWith(errorMsg);
             expect(() => verifyOnlyWallet.sign(message)).to.throw(errorMsg);
             expect(() => verifyOnlyWallet.exportToFile('./wallet.json')).to.throw('No key pair found');
         });
