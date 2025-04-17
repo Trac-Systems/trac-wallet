@@ -46,6 +46,10 @@ class Wallet {
         return this.#keyPair.publicKey.toString('hex');
     }
 
+    /**
+     * Returns the secret key as a hex string.
+     * @returns {string|null} The secret key in hex format or null if not set.
+     */
     get secretKey() {
         if (!this.#keyPair.secretKey) {
             return null;
@@ -61,6 +65,10 @@ class Wallet {
         return this.#isVerifyOnly;
     }
 
+    /**
+     * Ensures that the wallet is not in verify-only mode.
+     * @throws {Error} Throws an error if the wallet is set to verify-only mode.
+     */
     assertNotVerifyOnly() {
         if (this.#isVerifyOnly) {
             throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
@@ -107,6 +115,11 @@ class Wallet {
         return generateMnemonic(size);
     }
 
+    /**
+     * Creates a SHA-256 hash of the given message.
+     * @param {string|Buffer} message - The input message to hash.
+     * @returns {string} The SHA-256 hash as a hexadecimal string.
+     */
     #sha256(message) {
         const out = b4a.alloc(sodium.crypto_hash_sha256_BYTES || 32);
         sha256(b4a.from(message), out)
