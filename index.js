@@ -1,5 +1,6 @@
 /** @typedef {import('pear-interface')} */
 import { generateMnemonic, validateMnemonic, mnemonicToSeed } from 'bip39-mnemonic';
+import { mnemonicToSeedSync } from './cryptoHelpers.js';
 import { sodium, sha256 } from './env.js'
 import fs from 'fs';
 import readline from 'readline';
@@ -30,7 +31,7 @@ class Wallet {
         if (options.mnemonic && !this.#isVerifyOnly) {
             // TODO / WARNING: Calling an async function in a constructor is not recommended.
             // This may cause errors in production code. Consider refactoring this to use a factory method.
-            this.generateKeyPair(options.mnemonic);
+            this.generateKeyPairSync(options.mnemonic);
         }
     }
 
@@ -60,6 +61,12 @@ class Wallet {
         return this.#isVerifyOnly;
     }
 
+    assertNotVerifyOnly() {
+        if (this.#isVerifyOnly) {
+            throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
+        }
+    }
+
     /**
      * Sets the key pair directly. If the wallet is set to verifyOnly mode, it will return to standard mode
      * @param {Object} keyPair - An object containing the publicKey and secretKey as hex strings.
@@ -67,9 +74,8 @@ class Wallet {
      * @throws Will throw an error if the key pair is invalid.
      */
     set keyPair(keyPair) {
-        if (this.#isVerifyOnly) {
-            throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
-        }
+        this.assertNotVerifyOnly()
+
         if (!keyPair || !keyPair.publicKey || !keyPair.secretKey) {
             throw new Error('Invalid key pair. Please provide a valid object with publicKey and secretKey');
         }
@@ -101,6 +107,12 @@ class Wallet {
         return generateMnemonic(size);
     }
 
+    #sha256(message) {
+        const out = b4a.alloc(sodium.crypto_hash_sha256_BYTES || 32);
+        sha256(b4a.from(message), out)
+        return b4a.toString(out, 'hex');
+    }
+
     /**
      * Creates a cryptographic hash of a given message using the specified algorithm.
      *
@@ -111,9 +123,7 @@ class Wallet {
      */
     async createHash(type, message) {
         if (type === 'sha256') {
-            const out = b4a.alloc(sodium.crypto_hash_sha256_BYTES || 32);
-            sha256(b4a.from(message), out)
-            return b4a.toString(out, 'hex');
+            return this.#sha256(message);
         }
         if (global.Pear !== undefined) {
             let _type = '';
@@ -136,30 +146,58 @@ class Wallet {
     }
 
     /**
-     * Generates a key pair from a mnemonic phrase. If the wallet is set to verifyOnly mode, it will return to standard mode
+     * Generates a key pair from a mnemonic phrase. 
+     * If the wallet is set to verifyOnly mode, it will return to standard mode
+     * WARNING: This will delete previous keys if they exist
+     * @param {string} mnemonic - The mnemonic phrase.
+     * @throws Will throw an error if the wallet is set to verify only.
+     * @throws Will throw an error if the mnemonic is invalid.
+     */
+    generateKeyPairSync(mnemonic) {
+        this.assertNotVerifyOnly();
+        
+        let safeMnemonic = this.sanitizeMnemonic(mnemonic);
+
+        if (!safeMnemonic) {
+            safeMnemonic = generateMnemonic();
+        }
+
+        const seed = mnemonicToSeedSync(safeMnemonic);
+        this.#generateKeysFromSeed(seed);
+    }
+
+    /**
+     * Generates a key pair from a mnemonic phrase asynchronosly
+     * If the wallet is set to verifyOnly mode, it will return to standard mode
+     * WARNING: This will delete previous keys if they exist
      * @param {string} mnemonic - The mnemonic phrase.
      * @throws Will throw an error if the wallet is set to verify only.
      * @throws Will throw an error if the mnemonic is invalid.
      */
     async generateKeyPair(mnemonic) {
-        if (this.#isVerifyOnly) {
-            throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
-        }
-
-        // TODO: Include a warning stating that the previous keys will be deleted if a new mnemonic is provided
+        this.assertNotVerifyOnly();
+        
         let safeMnemonic = this.sanitizeMnemonic(mnemonic);
 
-        // TODO: Should we just return an error instead? The user will not be able backup the keys if we do this
         if (!safeMnemonic) {
             safeMnemonic = generateMnemonic();
         }
 
         const seed = await mnemonicToSeed(safeMnemonic);
+        this.#generateKeysFromSeed(seed);
+    }
 
+    /**
+     * Generates a key pair (public and secret keys) from a given seed.
+     *
+     * @param {Buffer | Uint8Array} seed - The seed used to generate the key pair. It can be a Buffer or a hex string.
+     * @throws {Error} Throws an error if the seed is invalid or if key generation fails.
+     */
+    #generateKeysFromSeed(seed) {
         const publicKey = b4a.alloc(sodium.crypto_sign_PUBLICKEYBYTES);
         const secretKey = b4a.alloc(sodium.crypto_sign_SECRETKEYBYTES);
 
-        const seed32 = b4a.from(await this.createHash('sha256', seed), 'hex');
+        const seed32 = b4a.from(this.#sha256(seed), 'hex');
 
         sodium.crypto_sign_seed_keypair(publicKey, secretKey, seed32);
 
@@ -176,9 +214,7 @@ class Wallet {
      * @throws Will throw an error if the secret key is not set.
      */
     sign(message, privateKey = null) {
-        if (this.#isVerifyOnly) {
-            throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
-        }
+        this.assertNotVerifyOnly()
 
         if (!this.#keyPair.secretKey && !privateKey) {
             throw new Error('No key pair found. Please, generate a key pair first');
@@ -225,9 +261,7 @@ class Wallet {
      * @throws Will throw an error if the wallet is set to verify only.
      */
     importFromFile(filePath) {
-        if (this.#isVerifyOnly) {
-            throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
-        }
+        this.assertNotVerifyOnly()
         const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
         this.#keyPair = this.sanitizeKeyPair(data.publicKey, data.secretKey);
         this.#isVerifyOnly = false;
@@ -315,9 +349,7 @@ class PeerWallet extends Wallet {
     // Imports a keypair from a file or generates a new one if it doesn't exist
     async initKeyPair(filePath) {
         // TODO: User shouldn't be allowed to store it in unencrypted form. ASK for a password to encrypt it. ENCRYPT(HASH(PASSWORD,SALT),FILE)/DECRYPT(HASH(PASSWORD,SALT),ENCRYPTED_FILE)?
-        if (this.#isVerifyOnly) {
-            throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
-        }
+        this.assertNotVerifyOnly()
 
         if (!filePath) {
             throw new Error("File path is required");

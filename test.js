@@ -8,9 +8,8 @@ import sodium from 'sodium-native';
 chai.use(chaiAsPromised)
 const expect = chai.expect;
 
-const buildWallet = async (mnemonic) => {
-    const newWallet = new PeerWallet();
-    await newWallet.generateKeyPair(mnemonic);
+const buildWallet = (mnemonic) => {
+    const newWallet = new PeerWallet({mnemonic : mnemonic});
     return newWallet;
 }
 
@@ -32,23 +31,32 @@ describe('Wallet', () => {
 
         it('should accept a valid mnemonic input', async () => {
             const validMnemonic = 'green ceiling yellow certain brass bottom east scorpion shove nasty business belt turkey target grow grunt stock glimpse man detail guitar goat front dose';
-            const walletLocal = await buildWallet(validMnemonic);
-            expect(walletLocal.publicKey).to.equal('9da26e25076b53adb370630f825917c23600117da83b7cbdca12332aac8c0f21');
+            const walletLocal1 = buildWallet(validMnemonic);
+            const walletLocal2 = buildWallet();
+            const walletLocal3 = buildWallet();
+
+            expect(walletLocal1.publicKey).to.equal('9da26e25076b53adb370630f825917c23600117da83b7cbdca12332aac8c0f21');
+            
+            walletLocal2.generateKeyPairSync(validMnemonic);
+            expect(walletLocal2.publicKey).to.equal('9da26e25076b53adb370630f825917c23600117da83b7cbdca12332aac8c0f21');
+            
+            await walletLocal3.generateKeyPair(validMnemonic);
+            expect(walletLocal3.publicKey).to.equal('9da26e25076b53adb370630f825917c23600117da83b7cbdca12332aac8c0f21');
         });
 
-        it('should throw an error for mnemonic containing less than 24 words', async () => {
+        it('should throw an error for mnemonic containing less than 24 words', () => {
             const faultyMnemonic = 'green ceiling yellow certain brass bottom east scorpion shove nasty business belt turkey target grow grunt stock glimpse man detail guitar goat front';
-            await expect(buildWallet(faultyMnemonic)).to.be.rejectedWith('Invalid mnemonic');
+            expect(() => buildWallet(faultyMnemonic)).to.throw('Invalid mnemonic');
         });
 
-        it('should throw an error for mnemonic containing more than 24 words', async () => {
+        it('should throw an error for mnemonic containing more than 24 words', () => {
             const faultyMnemonic = 'green ceiling yellow certain brass bottom east scorpion shove nasty business belt turkey target grow grunt stock glimpse man detail guitar goat front dose wagon';
-            await expect(buildWallet(faultyMnemonic)).to.be.rejectedWith('Invalid mnemonic');
+            expect(() => buildWallet(faultyMnemonic)).to.throw('Invalid mnemonic');
         });
 
         it('should throw an error for mnemonic containing invalid word', async () => {
             const faultyMnemonic = 'green ceiling yellow certain brass bottom east scorpion shove nasty business belt turkey target grow grunt stock glimpse man detail guitar goat front invalid';
-            await expect(buildWallet(faultyMnemonic)).to.be.rejectedWith('Invalid mnemonic');
+            expect(() => buildWallet(faultyMnemonic)).to.throw('Invalid mnemonic');
         });
     });
 
@@ -63,9 +71,9 @@ describe('Wallet', () => {
             expect(emptyWallet.publicKey).to.be.null;
         });
 
-        it('should set a valid key pair', async () => {
+        it('should set a valid key pair', () => {
             const mnemonic = 'green ceiling yellow certain brass bottom east scorpion shove nasty business belt turkey target grow grunt stock glimpse man detail guitar goat front dose';
-            const wallet1 = await buildWallet(mnemonic);
+            const wallet1 = buildWallet(mnemonic);
             const wallet2 = new PeerWallet();
             const keyPair = {
                 publicKey: "9da26e25076b53adb370630f825917c23600117da83b7cbdca12332aac8c0f21",
