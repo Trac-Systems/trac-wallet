@@ -1,6 +1,6 @@
 /** @typedef {import('pear-interface')} */
 import { generateMnemonic, validateMnemonic, mnemonicToSeed } from 'bip39-mnemonic';
-import { sodium, sha256 } from './env.js'
+import sodium from 'sodium-universal'
 import fs from 'fs';
 import readline from 'readline';
 import tty from 'tty';
@@ -111,8 +111,8 @@ class Wallet {
      */
     async createHash(type, message) {
         if (type === 'sha256') {
-            const out = b4a.alloc(sodium.crypto_hash_sha256_BYTES || 32);
-            sha256(b4a.from(message), out)
+            const out = b4a.alloc(sodium.crypto_hash_sha256_BYTES);
+            sodium.crypto_hash_sha256(out, b4a.from(message));
             return b4a.toString(out, 'hex');
         }
         if (global.Pear !== undefined) {
