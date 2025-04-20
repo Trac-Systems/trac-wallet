@@ -302,7 +302,7 @@ class PeerWallet extends Wallet {
         this.#isVerifyOnly = options.isVerifyOnly || false;
     }
 
-    async initKeyPair(filePath) {
+    async initKeyPair(filePath, readline_instance = null) {
         if (this.#isVerifyOnly) {
             throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
         }
@@ -320,7 +320,7 @@ class PeerWallet extends Wallet {
                 }
             } else {
                 console.log("Key file was not found. How do you wish to proceed?");
-                const response = await this.#setupKeypairInteractiveMode();
+                const response = await this.#setupKeypairInteractiveMode(readline_instance);
                 switch (response.type) {
                     case 'keypair':
                         this.keyPair = response.value;
@@ -347,19 +347,24 @@ class PeerWallet extends Wallet {
         }
     }
 
-    async #setupKeypairInteractiveMode() {
+    async #setupKeypairInteractiveMode(readline_instance = null) {
         if((global.Pear !== undefined && global.Pear.config.options.type === 'terminal') || global.Pear === undefined){
-            const rl = readline.createInterface({
-                input: new tty.ReadStream(0),
-                output: new tty.WriteStream(1)
-            });
+            let rl;
+            if(readline_instance !== null){
+                rl = readline_instance;
+            } else {
+                rl = readline.createInterface({
+                    input: new tty.ReadStream(0),
+                    output: new tty.WriteStream(1)
+                });
+            }
             let response;
             let choice = '';
             console.log("[1]. Generate new mnemonic phrase\n",
                 "[2]. Restore keypair from 24-word phrase\n",
                 "[3]. Input a keypair manually\n",
                 "[4]. Import keypair from file\n",
-                "Your choice(1 / 2/ 3/ /4): "
+                "Your choice(1 / 2/ 3/ /4):"
             );
             let choiceFunc = async function(input){
                 choice = input;
@@ -442,15 +447,13 @@ class PeerWallet extends Wallet {
                         console.log("Invalid choice. Please select again.");
                         response = null;
                         choice = '';
-                        rl.close();
-                        return this.#setupKeypairInteractiveMode();
+                        return this.#setupKeypairInteractiveMode(readline_instance);
                 }
             } catch(e) {
                 console.log("Invalid input. Please try again.");
                 response = null;
                 choice = '';
-                rl.close();
-                return this.#setupKeypairInteractiveMode();
+                return this.#setupKeypairInteractiveMode(readline_instance);
             }
             rl.close();
             return response;
