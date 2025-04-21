@@ -6,45 +6,69 @@ import sodium from 'sodium-native';
 
 describe('Wallet', () => {
     let wallet;
+    const validMnemonic = 'expire hobby crumble barely company behind solve kingdom plastic goddess congress sort awkward cancel ring quick gain wise doctor season fruit perfect fatal pool';
 
     beforeEach(() => {
         wallet = new PeerWallet();
-        wallet.generateKeyPair(wallet.generateMnemonic());
+        wallet.generateKeyPair('wallet.generateMnemonic()');
     });
 
     describe('Mnemonic Generation', () => {
         it('should generate a valid mnemonic phrase', () => {
             const mnemonic = wallet.generateMnemonic();
             expect(mnemonic).to.be.a('string');
-            expect(mnemonic.split(' ')).to.have.lengthOf(12);
+            expect(mnemonic.split(' ')).to.have.lengthOf(24);
             expect(bip39.validateMnemonic(mnemonic)).to.be.true;
         });
 
-        it('should accept a valid mnemonic input', () => {
-            const validMnemonic = 'session attitude weekend sign collect mobile return vacuum pool afraid wagon client';
-            const walletLocal = new PeerWallet({mnemonic: validMnemonic});
-            expect(walletLocal.publicKey).to.equal('82444d4f8f042ec06bbfba4f0b01043a5fdb03e8a8481d740b964563c0f91868');
+        it('should accept a valid mnemonic input', async () => {
+            const walletLocal = new PeerWallet();
+            await walletLocal.generateKeyPair(validMnemonic);
+            expect(walletLocal.publicKey).to.equal('e848b77918a7e5d7b990b47751fb8e90256743cabbe2e15f016ae7cc621fe108');
         });
 
-        it('should throw an error for mnemonic containing less than 12 words', () => {
-            const faultyMnemonic = 'session attitude weekend sign collect mobile return vacuum pool afraid wagon';
-            expect(() => new PeerWallet({mnemonic: faultyMnemonic})).to.throw('Invalid mnemonic');
+        it('should throw an error for mnemonic containing less than 24 words',  async () => {
+            const faultyMnemonic = 'expire hobby crumble barely company behind solve kingdom plastic goddess congress sort awkward cancel ring quick gain wise doctor season fruit perfect';
+            const walletLocal = new PeerWallet();
+            let thrown = false;
+            try{
+                await walletLocal.generateKeyPair(faultyMnemonic);
+            }catch(e){
+                thrown = true;
+            }
+            expect(thrown).to.equal(true);
         });
 
-        it('should throw an error for mnemonic containing more than 12 words', () => {
-            const faultyMnemonic = 'session attitude weekend sign collect mobile return vacuum pool afraid wagon client extra';
-            expect(() => new PeerWallet({mnemonic: faultyMnemonic})).to.throw('Invalid mnemonic');
+        it('should throw an error for mnemonic containing more than 24 words', async () => {
+            const faultyMnemonic = 'expire hobby crumble barely company behind solve kingdom plastic goddess congress sort awkward cancel ring quick gain wise doctor season fruit perfect fatal pool pool';
+            const walletLocal = new PeerWallet();
+            let thrown = false;
+            try{
+                await walletLocal.generateKeyPair(faultyMnemonic);
+            }catch(e){
+                thrown = true;
+            }
+            expect(thrown).to.equal(true);
         });
 
-        it('should throw an error for mnemonic containing invalid word', () => {
-            const faultyMnemonic = 'session attitude weekend sign collect mobile return vacuum pool afraid wagon invalid';
-            expect(() => new PeerWallet({mnemonic: faultyMnemonic})).to.throw('Invalid mnemonic');
+        it('should throw an error for mnemonic containing invalid word', async () => {
+            const faultyMnemonic = 'expire hobby crumble barely company behind solve kingdom plastic goddess congress sort awkward cancel ring quick gain wise doctor season fruit perfect fatal invalid';
+            const walletLocal = new PeerWallet();
+            let thrown = false;
+            try{
+                await walletLocal.generateKeyPair(faultyMnemonic);
+            }catch(e){
+                thrown = true;
+            }
+            expect(thrown).to.equal(true);
         });
     });
 
     describe('Key Pair Generation', () => {
-        it('should generate a valid key pair', () => {
-            const buf = Buffer.from(wallet.publicKey, 'hex')
+        it('should generate a valid key pair', async () => {
+            const walletLocal = new PeerWallet();
+            await walletLocal.generateKeyPair(validMnemonic);
+            const buf = Buffer.from(walletLocal.publicKey, 'hex')
             expect(buf).to.have.lengthOf(sodium.crypto_sign_PUBLICKEYBYTES);
         });
 
@@ -53,13 +77,13 @@ describe('Wallet', () => {
             expect(emptyWallet.publicKey).to.be.null;
         });
 
-        it('should set a valid key pair', () => {
-            const mnemonic = 'session attitude weekend sign collect mobile return vacuum pool afraid wagon client';
-            const wallet1 = new PeerWallet({mnemonic: mnemonic});
+        it('should set a valid key pair', async () => {
+            const wallet1 = new PeerWallet();
+            await wallet1.generateKeyPair(validMnemonic);
             const wallet2 = new PeerWallet();
             const keyPair = {
-                publicKey: "82444d4f8f042ec06bbfba4f0b01043a5fdb03e8a8481d740b964563c0f91868",
-                secretKey: "38ff0b5c840266901050964857c54b9f92836bc60383277a788084192ea5a2dc82444d4f8f042ec06bbfba4f0b01043a5fdb03e8a8481d740b964563c0f91868"
+                publicKey: "e848b77918a7e5d7b990b47751fb8e90256743cabbe2e15f016ae7cc621fe108",
+                secretKey: "2f1f7961ea38fbf7735eebb7d2faddaa7cea5fef637e60665f976907f4f29d55e848b77918a7e5d7b990b47751fb8e90256743cabbe2e15f016ae7cc621fe108"
             };
             wallet2.keyPair = keyPair;
             expect(wallet2.publicKey.toString).to.equal(wallet1.publicKey.toString);
@@ -81,10 +105,12 @@ describe('Wallet', () => {
     });
 
     describe('Message Signing and Verification', () => {
-        it('should sign and verify a message signature', () => {
+        it('should sign and verify a message signature', async () => {
             const message = 'Hello, world!';
-            const signature = wallet.sign(message);
-            const isValid = wallet.verify(signature, message, wallet.publicKey);
+            const wallet1 = new PeerWallet();
+            await wallet1.generateKeyPair(validMnemonic);
+            const signature = wallet1.sign(message);
+            const isValid = wallet1.verify(signature, message, wallet1.publicKey);
             expect(isValid).to.be.true;
         });
 
@@ -110,11 +136,13 @@ describe('Wallet', () => {
             expect(isValid).to.be.true;
         });
 
-        it('should verify a signature even with empty key pair', () => {
+        it('should verify a signature even with empty key pair', async () => {
             const emptyWallet = new PeerWallet();
+            const wallet1 = new PeerWallet();
+            await wallet1.generateKeyPair(validMnemonic);
             const message = 'Hello, world!';
-            const signature = wallet.sign(message);
-            const isValid = emptyWallet.verify(signature, message, wallet.publicKey);
+            const signature = wallet1.sign(message);
+            const isValid = emptyWallet.verify(signature, message, wallet1.publicKey);
             expect(isValid).to.be.true;
         });
 
@@ -125,23 +153,27 @@ describe('Wallet', () => {
     });
 
     describe('Exporting Keys', () => {
-        it('should export keys to a file', () => {
+        it('should export keys to a file', async () => {
             const filePath = './wallet.json';
-            wallet.exportToFile(filePath);
+            const wallet1 = new PeerWallet();
+            await wallet1.generateKeyPair(validMnemonic);
+            wallet1.exportToFile(filePath);
             const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-            expect(data.publicKey).to.equal(wallet.publicKey.toString('hex'));
+            expect(data.publicKey).to.equal(wallet1.publicKey.toString('hex'));
             fs.unlinkSync(filePath); // Clean up the file after test
         });
 
-        it('should be able to import keys from a file', () => {
+        it('should be able to import keys from a file', async () => {
             const filePath = './wallet.json';
-            wallet.exportToFile(filePath);
+            const wallet1 = new PeerWallet();
+            await wallet1.generateKeyPair(validMnemonic);
+            wallet1.exportToFile(filePath);
             const newWallet = new PeerWallet();
             newWallet.importFromFile(filePath);
-            expect(newWallet.publicKey.toString).to.equal(wallet.publicKey.toString);
+            expect(newWallet.publicKey.toString).to.equal(wallet1.publicKey.toString);
 
             const message = 'Hello, world!';
-            const sig1 = wallet.sign(message);
+            const sig1 = wallet1.sign(message);
             const sig2 = newWallet.sign(message);
             expect(sig1).to.equal(sig2);
 
@@ -155,7 +187,8 @@ describe('Wallet', () => {
     });
 
     describe('Verify Only Mode', () => {
-        it('should not generate key pair when isVerifyOnly is true', () => {
+
+        it('should not generate key pair when isVerifyOnly is true', async () => {
             const errorMsg = 'This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair'
             const message = 'Hello, world!';
             const verifyOnlyWallet = new PeerWallet({ isVerifyOnly: true });
@@ -166,18 +199,26 @@ describe('Wallet', () => {
 
             expect(verifyOnlyWallet.isVerifyOnly).to.be.true;
             expect(verifyOnlyWallet.publicKey).to.be.null;
-
             expect(() => verifyOnlyWallet.keyPair = keyPair).to.throw(errorMsg);
-            expect(() => verifyOnlyWallet.generateKeyPair()).to.throw(errorMsg);
+            let throws = false;
+            try{
+               await verifyOnlyWallet.generateKeyPair();
+            }catch(e)
+            {
+                throws = true;
+            }
+            expect(throws).to.equal(true);
             expect(() => verifyOnlyWallet.sign(message)).to.throw(errorMsg);
             expect(() => verifyOnlyWallet.exportToFile('./wallet.json')).to.throw('No key pair found');
         });
 
-        it('should verify a message signature when isVerifyOnly is true', () => {
+        it('should verify a message signature when isVerifyOnly is true', async () => {
             const message = 'Hello, world!';
-            const signature = wallet.sign(message);
+            const wallet1 = new PeerWallet();
+            await wallet1.generateKeyPair(validMnemonic);
+            const signature = wallet1.sign(message);
             const verifyOnlyWallet = new PeerWallet({ isVerifyOnly: true });
-            const isValid = verifyOnlyWallet.verify(signature, message, wallet.publicKey);
+            const isValid = verifyOnlyWallet.verify(signature, message, wallet1.publicKey);
             expect(isValid).to.be.true;
         });
     });
