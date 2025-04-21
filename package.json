@@ -8,26 +8,27 @@
     "type": "terminal"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "bip39-mnemonic": "^2.2.0",
     "b4a": "1.6.7",
     "bare-fs": "4.0.2",
     "bare-readline": "^1.0.7",
     "bare-tty": "^5.0.2",
-    "sodium-native": "^5.0.1",
+    "bip39-mnemonic": "^2.2.0",
     "fs": "npm:bare-node-fs",
     "readline": "npm:bare-node-readline",
+    "sodium-native": "^5.0.1",
     "tty": "npm:bare-node-tty"
   },
   "devDependencies": {
     "chai": "^5.2.0",
-    "mocha": "^11.1.0"
+    "mocha": "^11.1.0",
+    "bip39": "^3.1.0"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org",
