@@ -360,11 +360,11 @@ class PeerWallet extends Wallet {
             }
             let response;
             let choice = '';
-            console.log("[1]. Generate new mnemonic phrase\n",
+            console.log("\n[1]. Generate new mnemonic phrase\n",
                 "[2]. Restore keypair from 24-word phrase\n",
                 "[3]. Input a keypair manually\n",
                 "[4]. Import keypair from file\n",
-                "Your choice(1 / 2/ 3/ /4):"
+                "Your choice(1/ 2/ 3/ 4/):"
             );
             let choiceFunc = async function(input){
                 choice = input;
