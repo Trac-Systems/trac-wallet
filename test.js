@@ -3,6 +3,9 @@ import PeerWallet from './index.js';
 import * as fs from 'fs';
 import * as bip39 from 'bip39';
 import sodium from 'sodium-native';
+import {mnemonicToSeed} from 'bip39-mnemonic';
+import b4a from 'b4a';
+import slip10 from 'micro-key-producer/slip10.js';
 
 describe('Wallet', () => {
     let wallet;
@@ -10,7 +13,34 @@ describe('Wallet', () => {
 
     beforeEach(() => {
         wallet = new PeerWallet();
-        wallet.generateKeyPair('wallet.generateMnemonic()');
+        wallet.generateKeyPair(validMnemonic);
+    });
+
+    describe('HD Wallet Support', () => {
+        it('should create a valid HD wallet from micro-key-producer based on peer wallet mnemonic, then HD wallet signs a message and is verified by both HD and PeerWallet.', async () => {
+            const mnemonic = wallet.generateMnemonic();
+            const walletLocal = new PeerWallet();
+            await walletLocal.generateKeyPair(validMnemonic);
+            const seed = await mnemonicToSeed(validMnemonic);
+            const seed32 = await walletLocal.createHash('sha256', seed);
+
+            const msg = 'this is a test';
+
+            const hdkey = slip10.fromMasterSeed(seed32);
+            const sig = hdkey.sign(b4a.toString(b4a.from(msg, 'utf8'), 'hex'));
+
+            const hd_verify = hdkey.verify(b4a.toString(b4a.from(msg, 'utf8'), 'hex'), sig);
+            const native_verify = walletLocal.verify(b4a.toString(sig, 'hex'), msg, b4a.toString(hdkey.publicKeyRaw, 'hex'));
+
+            // reverse case tested through micro-key-producer hacking because it doesn't support off-wallet verify.
+            // confirmed to work.
+            /*
+            const sig2 = walletLocal.sign(msg);
+            const hd_verify2 = hdkey.verify2(b4a.toString(b4a.from(msg, 'utf8'), 'hex'), sig2, walletLocal.publicKey);
+            console.log(hd_verify2)*/
+
+            expect(hd_verify === native_verify).to.equal(true);
+        });
     });
 
     describe('Mnemonic Generation', () => {

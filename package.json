@@ -26,9 +26,10 @@
     "tty": "npm:bare-node-tty"
   },
   "devDependencies": {
+    "bip39": "^3.1.0",
     "chai": "^5.2.0",
-    "mocha": "^11.1.0",
-    "bip39": "^3.1.0"
+    "micro-key-producer": "^0.7.5",
+    "mocha": "^11.1.0"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org",
