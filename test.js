@@ -20,8 +20,8 @@ describe('Wallet', () => {
         it('should create a valid HD wallet from micro-key-producer based on peer wallet mnemonic, then HD wallet signs a message and is verified by both HD and PeerWallet.', async () => {
             const mnemonic = wallet.generateMnemonic();
             const walletLocal = new PeerWallet();
-            await walletLocal.generateKeyPair(validMnemonic);
-            const seed = await mnemonicToSeed(validMnemonic);
+            await walletLocal.generateKeyPair(mnemonic);
+            const seed = await mnemonicToSeed(mnemonic);
             const seed32 = await walletLocal.createHash('sha256', seed);
 
             const msg = 'this is a test';
