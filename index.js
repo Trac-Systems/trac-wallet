@@ -6,7 +6,6 @@ import readline from 'readline';
 import tty from 'tty'
 import b4a from 'b4a';
 
-const size = 128;
 const RANDOM_BUFFER_SIZE = 32;
 class Wallet {
     #keyPair;
@@ -95,7 +94,7 @@ class Wallet {
      * @returns {string} A new mnemonic phrase.
      */
     generateMnemonic() {
-        return generateMnemonic(size);
+        return generateMnemonic();
     }
 
     async createHash(type, message){
