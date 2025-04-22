@@ -1,5 +1,5 @@
 /** @typedef {import('pear-interface')} */
-import {generateMnemonic, validateMnemonic, mnemonicToSeed} from 'bip39-mnemonic';
+import { generateMnemonic, validateMnemonic, mnemonicToSeed } from 'bip39-mnemonic';
 import sodium from 'sodium-native';
 import fs from 'fs';
 import readline from 'readline';
@@ -7,7 +7,7 @@ import tty from 'tty'
 import b4a from 'b4a';
 
 const size = 128;
-
+const RANDOM_BUFFER_SIZE = 32;
 class Wallet {
     #keyPair;
     #isVerifyOnly;
@@ -291,6 +291,16 @@ class Wallet {
             publicKey: this.sanitizePublicKey(publicKey),
             secretKey: this.sanitizeSecretKey(secretKey)
         };
+    }
+    /**
+     * Generates a random nonce with high entrophy.
+     * 
+     * @returns {Buffer} A securely generated 32-byte nonce as a Buffer.
+     */
+    static generateNonce() {
+        const nonce = b4a.alloc(RANDOM_BUFFER_SIZE);
+        sodium.randombytes_buf(nonce);
+        return nonce;
     }
 }
 
