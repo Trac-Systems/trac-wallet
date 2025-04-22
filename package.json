@@ -8,14 +8,15 @@
     "type": "terminal"
   },
   "scripts": {
-    "test": "mocha"
+    "test": "mocha",
+    "build": "webpack --config webpack.config.cjs",
+    "serve": "npx serve dist -p 8000"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "assert": "npm:bare-node-assert",
     "b4a": "1.6.7",
     "bare-assert": "^1.0.2",
     "bare-buffer": "^3.1.2",
@@ -44,7 +45,6 @@
     "bare-zlib": "^1.2.5",
     "bip39": "^3.1.0",
     "bip39-mnemonic": "^2.2.0",
-    "buffer": "npm:bare-node-buffer",
     "child_process": "npm:bare-node-child-process",
     "console": "npm:bare-node-console",
     "crypto": "npm:bare-node-crypto",
@@ -71,14 +71,26 @@
     "tls": "npm:bare-node-tls",
     "tty": "npm:bare-node-tty",
     "url": "npm:bare-node-url",
-    "util": "npm:bare-node-util",
     "worker_threads": "npm:bare-node-worker-threads",
     "zlib": "npm:bare-node-zlib"
   },
   "devDependencies": {
+    "assert": "^2.1.0",
+    "browserify": "^17.0.1",
+    "browserify-zlib": "^0.2.0",
+    "buffer": "^6.0.3",
     "chai": "^5.2.0",
     "chai-as-promised": "^8.0.1",
-    "mocha": "^11.1.0"
+    "crypto-browserify": "^3.12.1",
+    "html-webpack-plugin": "^5.6.3",
+    "mocha": "^11.1.0",
+    "path-browserify": "^1.0.1",
+    "stream-browserify": "^3.0.0",
+    "util": "^0.12.5",
+    "util-promisify": "^3.0.0",
+    "webpack": "^5.99.5",
+    "webpack-cli": "^6.0.1",
+    "webpack-dev-server": "^5.2.1"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org",

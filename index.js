@@ -1,15 +1,11 @@
 /** @typedef {import('pear-interface')} */
 import { generateMnemonic, validateMnemonic, mnemonicToSeed } from 'bip39-mnemonic';
 import sodium from 'sodium-universal'
-import fs from 'fs';
-import readline from 'readline';
-import tty from 'tty';
 import b4a from 'b4a';
-
 const size = 128; // 12 words. Size equal to 256 is 24 words.
 
 // TODO: Decide if this should continue being an internal-only class or if it should be exported
-class Wallet {
+export class Wallet {
     #keyPair; // TODO: This needs to be in a secure storage, not in memory. This is just a temporary solution.
     #isVerifyOnly;
 
@@ -111,8 +107,8 @@ class Wallet {
      */
     async createHash(type, message) {
         if (type === 'sha256') {
-            const out = b4a.alloc(sodium.crypto_hash_sha256_BYTES);
-            sodium.crypto_hash_sha256(out, b4a.from(message));
+            const out = b4a.alloc(sodium.crypto_hash_sha256_BYTES || 32);
+            sodium.crypto_hash_sha256(out, b4a.from(message));  // Zamiast sha256 używamy sodium.crypto_hash_sha256
             return b4a.toString(out, 'hex');
         }
         if (global.Pear !== undefined) {
@@ -130,11 +126,9 @@ class Wallet {
             return hashArray
                 .map((b) => b.toString(16).padStart(2, "0"))
                 .join("");
-        } else {
-            return crypto.createHash(type).update(message).digest('hex')
-        }
+        } 
     }
-
+    
     /**
      * Generates a key pair from a mnemonic phrase. If the wallet is set to verifyOnly mode, it will return to standard mode
      * @param {string} mnemonic - The mnemonic phrase.
@@ -205,33 +199,8 @@ class Wallet {
      * @param {string} filePath - The path to the file where the keys will be saved.
      * @throws Will throw an error if the key pair is not set.
      */
-    exportToFile(filePath, mnemonic = null) {
-        if (!this.#keyPair.secretKey) {
-            throw new Error('No key pair found');
-        }
-        const data = {
-            publicKey: this.#keyPair.publicKey.toString('hex'),
-            secretKey: this.#keyPair.secretKey.toString('hex')
-        };
-        if (mnemonic !== null) {
-            data['mnemonic'] = mnemonic;
-        }
-        fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-    }
 
-    /**
-     * Imports a key pair from a JSON file. If the wallet is set to verifyOnly mode, it will return to standard mode
-     * @param {string} filePath - The path to the file where the keys are saved.
-     * @throws Will throw an error if the wallet is set to verify only.
-     */
-    importFromFile(filePath) {
-        if (this.#isVerifyOnly) {
-            throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
-        }
-        const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-        this.#keyPair = this.sanitizeKeyPair(data.publicKey, data.secretKey);
-        this.#isVerifyOnly = false;
-    }
+
 
     /**
      * Sanitizes and validates a mnemonic phrase.
@@ -303,143 +272,4 @@ class Wallet {
     }
 }
 
-// TODO: this wallet needs to be separated into its own repo at some point
-class PeerWallet extends Wallet {
-    #isVerifyOnly;
-
-    constructor(options = {}) {
-        super(options);
-        this.#isVerifyOnly = options.isVerifyOnly || false;
-    }
-
-    // Imports a keypair from a file or generates a new one if it doesn't exist
-    async initKeyPair(filePath) {
-        // TODO: User shouldn't be allowed to store it in unencrypted form. ASK for a password to encrypt it. ENCRYPT(HASH(PASSWORD,SALT),FILE)/DECRYPT(HASH(PASSWORD,SALT),ENCRYPTED_FILE)?
-        if (this.#isVerifyOnly) {
-            throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
-        }
-
-        if (!filePath) {
-            throw new Error("File path is required");
-        }
-
-        try {
-            // Check if the key file exists
-            if (fs.existsSync(filePath)) {
-                const keyPair = JSON.parse(fs.readFileSync(filePath));
-                this.keyPair = {
-                    publicKey: keyPair.publicKey,
-                    secretKey: keyPair.secretKey
-                }
-            } else {
-                console.log("Key file was not found. How do you wish to proceed?");
-                const response = await this.#setupKeypairInteractiveMode();
-                switch (response.type) {
-                    case 'keypair':
-                        this.keyPair = response.value;
-                        break;
-                    case 'mnemonic':
-                        let mnemonic = response.value;
-                        if (mnemonic === null) {
-                            mnemonic = this.generateMnemonic();
-                            console.log("This is your mnemonic:\n", mnemonic, "\nPlease back it up in a safe location")
-                        }
-
-                        await this.generateKeyPair(mnemonic);
-
-                        this.exportToFile(filePath, mnemonic);
-                        console.log("DEBUG: Key pair generated and stored in", filePath);
-                        break;
-                    case 'import':
-                        this.importFromFile(response.value);
-                        break;
-                    default:
-                        console.error("Invalid response type from keypair setup interactive menu");
-                }
-            }
-        } catch (err) {
-            console.error(err);
-        }
-    }
-
-    async #setupKeypairInteractiveMode() {
-        if ((global.Pear !== undefined && global.Pear.config.options.type === 'terminal') || global.Pear === undefined) {
-            const rl = readline.createInterface({
-                input: new tty.ReadStream(0),
-                output: new tty.WriteStream(1)
-            });
-
-            const question = (query) => {
-                return new Promise(resolve => {
-                    rl.question(query, resolve);
-                });
-            };
-
-            let response;
-
-            const choice = (await question(
-                "[1]. Generate new mnemonic phrase\n" +
-                "[2]. Restore keypair from backed up response phrase\n" +
-                "[3]. Input a keypair manually\n" +
-                "[4]. Import keypair from file\n" +
-                "Your choice( 1/ 2/ 3/ 4): "
-            )).trim();
-            switch (choice) {
-                case '1':
-                    response = {
-                        type: 'mnemonic',
-                        value: null // Will be generated by the wallet
-                    };
-                    break;
-                case '2':
-                    {
-                        const mnemonicInput = await question("Enter your mnemonic phrase: ");
-                        response = {
-                            type: 'mnemonic',
-                            value: this.sanitizeMnemonic(mnemonicInput) // This is going to be sanitized by the wallet
-                        };
-                    }
-                    break;
-                case '3':
-                    {
-                        const publicKey = await question("Enter your public key: ");
-                        const secretKey = await question("Enter your secret key: ");
-                        response = {
-                            type: 'keypair',
-                            value: {
-                                publicKey: publicKey, //This is going to be sanitized by the wallet
-                                secretKey: secretKey //This is  going to be sanitized by the wallet
-                            }
-                        };
-                    }
-                    break;
-                case '4':
-                    {
-                        const filePath = await question("Enter the path to the keypair file: ");
-                        response = {
-                            type: 'import',
-                            value: filePath
-                        };
-                    }
-                    break;
-                default:
-                    console.log("Invalid choice. Please select again");
-                    rl.close();
-                    return this.#setupKeypairInteractiveMode();
-            }
-            rl.close();
-            return response;
-        }
-        // try desktop by default, only mnemonic yet
-        return {
-            type: 'mnemonic',
-            value: null // Will be generated by the wallet
-        };
-    }
-
-    async sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-}
-
-export default PeerWallet;
+export default Wallet;

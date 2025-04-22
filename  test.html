@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Test createHash with sodium-universal in js</title>
+</head>
+<body>
+  <h1>testing createHash('ABC')</h1>
+  <p id="hash-output">output: ...</p>
+
+  <script src="dist/bundle.js"></script>
+  <script>
+    (async () => {
+      try {
+        const wallet = new Wallet();
+        const hash = await wallet.createHash('sha256', 'ABC');
+        console.log('Hash:', hash);
+        document.getElementById('hash-output').textContent = 'Wynik: ' + hash;
+      } catch (err) {
+        console.error('Błąd podczas generowania hasha:', err);
+      }
+    })();
+  </script>
+</body>
+</html>
