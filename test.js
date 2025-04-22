@@ -253,3 +253,18 @@ describe('Wallet', () => {
         });
     });
 });
+
+describe('Nonce Generation', () => {
+    it('should return a buffer of 32 bytes', () => {
+        const nonce = PeerWallet.generateNonce();
+        expect(b4a.isBuffer(nonce)).to.be.true;
+        expect(nonce.length).to.equal(32);
+    });
+
+    it('should return a different nonce each time', () => {
+        const nonce1 = PeerWallet.generateNonce();
+        const nonce2 = PeerWallet.generateNonce();
+        expect(b4a.equals(nonce1, nonce2)).to.be.false;
+      });
+
+});
