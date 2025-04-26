@@ -464,7 +464,6 @@ class PeerWallet extends Wallet {
                 choice = '';
                 return this.#setupKeypairInteractiveMode(readline_instance);
             }
-            rl.close();
             return response;
         }
         // desktop mode if pear
