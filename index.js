@@ -212,15 +212,21 @@ class Wallet {
 
         const nonce = b4a.alloc(sodium.crypto_secretbox_NONCEBYTES);
         sodium.randombytes_buf(nonce);
-        const messageBuffer = Buffer.from(data, 'utf8');
-        const ciphertext = Buffer.alloc(messageBuffer.length + sodium.crypto_secretbox_MACBYTES);
+        const messageBuffer = b4a.from(data, 'utf8');
+        const ciphertext = b4a.alloc(messageBuffer.length + sodium.crypto_secretbox_MACBYTES);
 
         sodium.crypto_secretbox_easy(ciphertext, messageBuffer, nonce, key);
-
-        return {
+        const returnData = {
             nonce: nonce.toString('hex'),
             ciphertext: ciphertext.toString('hex')
         };
+
+        // Cleanup sensitive data from memory
+        sodium.sodium_memzero(messageBuffer);
+        sodium.sodium_memzero(nonce);
+        sodium.sodium_memzero(ciphertext);
+
+        return returnData;
     }
 
     /**
@@ -241,16 +247,22 @@ class Wallet {
             throw new Error('Invalid encrypted data format. Missing nonce or ciphertext.');
         }
 
-        const nonceBuffer = Buffer.from(data.nonce, 'hex');
-        const ciphertextBuffer = Buffer.from(data.ciphertext, 'hex');
-        const messageBuffer = Buffer.alloc(ciphertextBuffer.length - sodium.crypto_secretbox_MACBYTES);
+        const nonceBuffer = b4a.from(data.nonce, 'hex');
+        const ciphertextBuffer = b4a.from(data.ciphertext, 'hex');
+        const messageBuffer = b4a.alloc(ciphertextBuffer.length - sodium.crypto_secretbox_MACBYTES);
 
         if (!sodium.crypto_secretbox_open_easy(messageBuffer, ciphertextBuffer, nonceBuffer, key)) {
             throw new Error('Failed to decrypt data. Invalid key or corrupted data.');
         }
 
-        // TODO: Purge data from messageBuffer after use
-        return JSON.parse(messageBuffer.toString('utf8'));
+        const returnData = JSON.parse(messageBuffer.toString('utf8'));
+
+        // Cleanup sensitive data from memory
+        sodium.sodium_memzero(nonceBuffer);
+        sodium.sodium_memzero(ciphertextBuffer);
+        sodium.sodium_memzero(messageBuffer);
+
+        return returnData;
     }
 
     /**
@@ -294,6 +306,10 @@ class Wallet {
             const fdata = this.encrypt(message, key);
             fdata.salt = salt.toString('hex');
             fileData = JSON.stringify(fdata, null, 2);
+
+            // Cleanup sensitive data from memory
+            sodium.sodium_memzero(key);
+            sodium.sodium_memzero(salt);
         }
 
         fs.writeFileSync(filePath, fileData);
@@ -329,6 +345,10 @@ class Wallet {
             );
 
             data = this.decrypt(data, key);
+
+            // Cleanup sensitive data from memory
+            sodium.sodium_memzero(key);
+            sodium.sodium_memzero(salt);
         }
         this.#keyPair = this.sanitizeKeyPair(data.publicKey, data.secretKey);
         // TODO: Purge data from memory after this step
