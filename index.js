@@ -10,6 +10,7 @@ const RANDOM_BUFFER_SIZE = 32;
 class Wallet {
     #keyPair;
     #isVerifyOnly;
+    #encryptionKeyBytes
 
     /**
      * Creates a new Wallet instance.
@@ -19,6 +20,7 @@ class Wallet {
      */
     constructor(options = {}) {
         this.#isVerifyOnly = options.isVerifyOnly || false;
+        this.#encryptionKeyBytes = sodium.crypto_secretbox_KEYBYTES;
 
         this.#keyPair = {
             publicKey: null,
@@ -46,6 +48,14 @@ class Wallet {
             return null;
         }
         return this.#keyPair.secretKey.toString('hex');
+    }
+
+    /**
+     * Returns the size of the encryption key in bytes.
+     * @returns {number} The size of the encryption key in bytes.
+     */
+    get encryptionKeyBytes() {
+        return this.#encryptionKeyBytes;
     }
 
     /**
@@ -190,11 +200,67 @@ class Wallet {
     }
 
     /**
+     * Encrypts the exported key file data
+     * @param {string} data - The JSON string of the key pair to encrypt.
+     * @param {Buffer} key - A 32-byte encryption key.
+     * @returns {Object} The encrypted data as JSON containing nonce and cyphertext.
+     */
+    encrypt(data, key) {
+        if (key.length !== sodium.crypto_secretbox_KEYBYTES) {
+            throw new Error(`Key must be ${sodium.crypto_secretbox_KEYBYTES} bytes long`);
+        }
+
+        const nonce = b4a.alloc(sodium.crypto_secretbox_NONCEBYTES);
+        sodium.randombytes_buf(nonce);
+        const messageBuffer = Buffer.from(data, 'utf8');
+        const ciphertext = Buffer.alloc(messageBuffer.length + sodium.crypto_secretbox_MACBYTES);
+
+        sodium.crypto_secretbox_easy(ciphertext, messageBuffer, nonce, key);
+
+        return {
+            nonce: nonce.toString('hex'),
+            ciphertext: ciphertext.toString('hex')
+        };
+    }
+
+    /**
+     * Decrypts the encrypted key file data using sodium-native.
+     * @param {string|Object} encryptedData - The encrypted data as a JSON string or an object.
+     * @param {Buffer} key - A 32-byte decryption key.
+     * @returns {Object} The decrypted JSON containing the key pair.
+     * @throws Will throw an error if decryption fails.
+     */
+    decrypt(encryptedData, key) {
+        if (key.length !== sodium.crypto_secretbox_KEYBYTES) {
+            throw new Error(`Key must be ${sodium.crypto_secretbox_KEYBYTES} bytes long`);
+        }
+
+        const data = typeof encryptedData === 'string' ? JSON.parse(encryptedData) : encryptedData;
+
+        if (!data.nonce || !data.ciphertext) {
+            throw new Error('Invalid encrypted data format. Missing nonce or ciphertext.');
+        }
+
+        const nonceBuffer = Buffer.from(data.nonce, 'hex');
+        const ciphertextBuffer = Buffer.from(data.ciphertext, 'hex');
+        const messageBuffer = Buffer.alloc(ciphertextBuffer.length - sodium.crypto_secretbox_MACBYTES);
+
+        if (!sodium.crypto_secretbox_open_easy(messageBuffer, ciphertextBuffer, nonceBuffer, key)) {
+            throw new Error('Failed to decrypt data. Invalid key or corrupted data.');
+        }
+
+        // TODO: Purge data from messageBuffer after use
+        return JSON.parse(messageBuffer.toString('utf8'));
+    }
+
+    /**
      * Exports the key pair to a JSON file.
      * @param {string} filePath - The path to the file where the keys will be saved.
+     * @param {string} [mnemonic=null] - The mnemonic phrase to include in the file. If null, it will not be included.
+     * @param {string} [encryptionKey=""] - The encryption key to use for encrypting the file. If not provided, the file will not be encrypted.
      * @throws Will throw an error if the key pair is not set.
      */
-    exportToFile(filePath, mnemonic = null) {
+    exportToFile(filePath, mnemonic = null, encryptionKey = "") { // TODO: In the future, the key parameter should not be optional!
         if (!this.#keyPair.secretKey) {
             throw new Error('No key pair found');
         }
@@ -205,20 +271,67 @@ class Wallet {
         if(mnemonic !== null ){
             data['mnemonic'] = mnemonic;
         }
-        fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+
+        const message = JSON.stringify(data, null, 2);
+
+        let fileData;
+        if (encryptionKey === null) {
+            fileData = message
+        }
+        else {
+            const key = b4a.alloc(this.encryptionKeyBytes);
+            const salt = b4a.alloc(sodium.crypto_pwhash_SALTBYTES);
+            sodium.randombytes_buf(salt);
+            sodium.crypto_pwhash(
+                key,
+                b4a.from(encryptionKey, 'utf8'),
+                salt,
+                sodium.crypto_pwhash_OPSLIMIT_MODERATE,
+                sodium.crypto_pwhash_MEMLIMIT_MODERATE,
+                sodium.crypto_pwhash_ALG_ARGON2I13
+            );
+
+            const fdata = this.encrypt(message, key);
+            fdata.salt = salt.toString('hex');
+            fileData = JSON.stringify(fdata, null, 2);
+        }
+
+        fs.writeFileSync(filePath, fileData);
     }
 
     /**
      * Imports a key pair from a JSON file. If the wallet is set to verifyOnly mode, it will return to standard mode
      * @param {string} filePath - The path to the file where the keys are saved.
+     * @param {string} [encryptionKey=""] - The encryption key to use for decrypting the file. If not provided, the function assumes the file is not encrypted.
      * @throws Will throw an error if the wallet is set to verify only.
      */
-    importFromFile(filePath) {
+    importFromFile(filePath, encryptionKey = "") { // TODO: In the future, the key parameter should not be optional!
         if (this.#isVerifyOnly) {
             throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
         }
-        const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+
+        let data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        if (encryptionKey !== null) {
+            if (!data.salt || !data.nonce || !data.ciphertext) {
+                throw new Error('Could not decrypt keyfile. Data is invalid or corrupted');
+            }
+
+            const key = b4a.alloc(this.encryptionKeyBytes);
+            const salt = b4a.from(data.salt, 'hex');
+
+            sodium.crypto_pwhash(
+                key,
+                b4a.from(encryptionKey, 'utf8'),
+                salt,
+                sodium.crypto_pwhash_OPSLIMIT_MODERATE,
+                sodium.crypto_pwhash_MEMLIMIT_MODERATE,
+                sodium.crypto_pwhash_ALG_ARGON2I13
+            );
+
+            data = this.decrypt(data, key);
+        }
         this.#keyPair = this.sanitizeKeyPair(data.publicKey, data.secretKey);
+        // TODO: Purge data from memory after this step
         this.#isVerifyOnly = false;
     }
 

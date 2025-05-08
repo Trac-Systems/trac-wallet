@@ -182,6 +182,43 @@ describe('Wallet', () => {
         });
     });
 
+    describe('Encryption and Decryption', () => {
+        it('should encrypt and decrypt data correctly', () => {
+            const data = JSON.stringify({ test: 'data' });
+            const encryptionKey = b4a.alloc(wallet.encryptionKeyBytes).fill('testingKey123!"§');
+            const encryptedData = wallet.encrypt(data, encryptionKey);
+            const decryptedData = wallet.decrypt(encryptedData, encryptionKey);
+
+            expect(JSON.stringify(decryptedData)).to.equal(data);
+        });
+
+        it('should throw an error if the decryption key is incorrect', () => {
+            const data = JSON.stringify({ test: 'data' });
+            const rightKey = b4a.alloc(wallet.encryptionKeyBytes).fill('rightKey123!"§');
+            const wrongKey = b4a.alloc(wallet.encryptionKeyBytes).fill('wrongKey123!"§');
+            const encryptedData = wallet.encrypt(data, rightKey);
+
+            expect(() => wallet.decrypt(encryptedData, wrongKey)).to.throw('Failed to decrypt data. Invalid key or corrupted data.');
+        });
+
+        it('should throw an error if the encryption key is invalid', () => {
+            const data = JSON.stringify({ test: 'data' });
+            const invalidKey = b4a.alloc(wallet.encryptionKeyBytes / 2).fill('invalidKey123!"§'); // Invalid key length
+
+            expect(() => wallet.encrypt(data, invalidKey)).to.throw(`Key must be ${sodium.crypto_secretbox_KEYBYTES} bytes long`);
+        });
+
+        it('should throw an error if the decryption key is invalid', () => {
+            const data = JSON.stringify({ test: 'data' });
+            const encryptionKey = b4a.alloc(wallet.encryptionKeyBytes).fill('rightKey123!"§');
+            const invalidKey = b4a.alloc(wallet.encryptionKeyBytes / 2).fill('wrongKey123!"§'); // Invalid key length
+
+            const encryptedData = wallet.encrypt(data, encryptionKey);
+
+            expect(() => wallet.decrypt(encryptedData, invalidKey)).to.throw(`Key must be ${sodium.crypto_secretbox_KEYBYTES} bytes long`);
+        });
+    });
+
     describe('Exporting Keys', () => {
         it('should export keys to a file', async () => {
             const filePath = './wallet.json';
@@ -189,7 +226,9 @@ describe('Wallet', () => {
             await wallet1.generateKeyPair(validMnemonic);
             wallet1.exportToFile(filePath);
             const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-            expect(data.publicKey).to.equal(wallet1.publicKey.toString('hex'));
+            expect(data.salt).to.not.be.undefined;
+            expect(data.nonce).to.not.be.undefined;
+            expect(data.ciphertext).to.not.be.undefined;
             fs.unlinkSync(filePath); // Clean up the file after test
         });
 
@@ -205,6 +244,36 @@ describe('Wallet', () => {
             const message = 'Hello, world!';
             const sig1 = wallet1.sign(message);
             const sig2 = newWallet.sign(message);
+            expect(sig1).to.equal(sig2);
+
+            fs.unlinkSync(filePath); // Clean up the file after test
+        });
+
+        it('should correctly export and import a key file with encryption', async () => {
+            const filePath = './wallet.json';
+            const encryptionKey = 'someEncryptionKey'
+
+            const wallet1 = new PeerWallet();
+            await wallet1.generateKeyPair(validMnemonic);
+
+            // Test exporting with encryption
+            wallet1.exportToFile(filePath, null, encryptionKey);
+            const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            expect(data.nonce).to.not.be.undefined;
+            expect(data.ciphertext).to.not.be.undefined;
+            expect(data.publicKey).to.be.undefined;
+            expect(data.secretKey).to.be.undefined;
+            expect(data.mnemonic).to.be.undefined;
+
+            // Test importing with decryption
+            const wallet2 = new PeerWallet();
+            wallet2.importFromFile(filePath, encryptionKey);
+            expect(wallet2.publicKey.toString).to.equal(wallet1.publicKey.toString);
+
+            // Test signing and verifying a message
+            const message = 'Hello, world!';
+            const sig1 = wallet1.sign(message);
+            const sig2 = wallet2.sign(message);
             expect(sig1).to.equal(sig2);
 
             fs.unlinkSync(filePath); // Clean up the file after test
