@@ -41,6 +41,10 @@ class Wallet {
         return this.#keyPair.publicKey.toString('hex');
     }
 
+    /**
+     * Returns the secret key as a hex string.
+     * @returns {string|null} The secret key in hex format or null if not set.
+     */
     get secretKey() {
         if (!this.#keyPair.secretKey) {
             return null;
@@ -97,11 +101,18 @@ class Wallet {
         return generateMnemonic();
     }
 
+    /**
+     * Creates a hash of the given message using the specified algorithm.
+     * @param {string} type - The hash algorithm to use (e.g., 'sha256', 'sha1', 'sha384', 'sha512').
+     * @param {string} message - The message to hash.
+     * @returns {string} The hash in hex format.
+    */
+    // TODO: Refactor / improve security for this function
     async createHash(type, message){
         if(type === 'sha256'){
             const out = b4a.alloc(sodium.crypto_hash_sha256_BYTES);
             sodium.crypto_hash_sha256(out, b4a.from(message));
-            return b4a.toString(out, 'hex');
+            return b4a.toString(out, 'hex'); // TODO: Return a buffer insteado of a string
         }
         let createHash = null;
         if(global.Pear !== undefined){
@@ -117,7 +128,7 @@ class Wallet {
             const hash = await crypto.subtle.digest(_type, data);
             const hashArray = Array.from(new Uint8Array(hash));
             return hashArray
-                .map((b) => b.toString(16).padStart(2, "0"))
+                .map((b) => b.toString(16).padStart(2, "0")) // TODO: Return a buffer instead of a string
                 .join("");
         } else {
             return crypto.createHash(type).update(message).digest('hex')
@@ -186,7 +197,7 @@ class Wallet {
         const messageBuffer = b4a.isBuffer(message) ? message : b4a.from(message);
         const signature = b4a.alloc(sodium.crypto_sign_BYTES);
         sodium.crypto_sign_detached(signature, messageBuffer, keyToUse);
-        return signature.toString('hex');
+        return signature.toString('hex'); // TODO: Return a buffer instead of a string in the future
     }
 
     /**
@@ -196,7 +207,7 @@ class Wallet {
      * @returns {Object} The encrypted data as JSON containing nonce and cyphertext.
      */
     encrypt(data, key) {
-        if (!Buffer.isBuffer(key) || key.length !== ENCRYPTION_KEY_BYTES) {
+        if (!b4a.isBuffer(key) || key.length !== ENCRYPTION_KEY_BYTES) {
             throw new Error(`Key must be a ${ENCRYPTION_KEY_BYTES} bytes long buffer`);
         }
 
@@ -360,7 +371,7 @@ class Wallet {
         // Check if all words are valid
         const words = sanitized.split(' ');
         if (!validateMnemonic(sanitized)) {
-            throw new Error('Invalid mnemonic. Please, provide a valid 12-word mnemonic');
+            throw new Error('Invalid mnemonic phrase');
         }
 
         return sanitized;
