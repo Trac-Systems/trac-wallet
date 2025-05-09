@@ -185,7 +185,7 @@ describe('Wallet', () => {
     describe('Encryption and Decryption', () => {
         it('should encrypt and decrypt data correctly', () => {
             const data = JSON.stringify({ test: 'data' });
-            const encryptionKey = b4a.alloc(wallet.encryptionKeyBytes).fill('testingKey123!"§');
+            const encryptionKey = b4a.alloc(32).fill('testingKey123!"§');
             const encryptedData = wallet.encrypt(data, encryptionKey);
             const decryptedData = wallet.decrypt(encryptedData, encryptionKey);
 
@@ -194,8 +194,8 @@ describe('Wallet', () => {
 
         it('should throw an error if the decryption key is incorrect', () => {
             const data = JSON.stringify({ test: 'data' });
-            const rightKey = b4a.alloc(wallet.encryptionKeyBytes).fill('rightKey123!"§');
-            const wrongKey = b4a.alloc(wallet.encryptionKeyBytes).fill('wrongKey123!"§');
+            const rightKey = b4a.alloc(32).fill('rightKey123!"§');
+            const wrongKey = b4a.alloc(32).fill('wrongKey123!"§');
             const encryptedData = wallet.encrypt(data, rightKey);
 
             expect(() => wallet.decrypt(encryptedData, wrongKey)).to.throw('Failed to decrypt data. Invalid key or corrupted data.');
@@ -203,15 +203,15 @@ describe('Wallet', () => {
 
         it('should throw an error if the encryption key is invalid', () => {
             const data = JSON.stringify({ test: 'data' });
-            const invalidKey = b4a.alloc(wallet.encryptionKeyBytes / 2).fill('invalidKey123!"§'); // Invalid key length
+            const invalidKey = b4a.alloc(16).fill('invalidKey123!"§'); // Invalid key length
 
-            expect(() => wallet.encrypt(data, invalidKey)).to.throw(`Key must be ${sodium.crypto_secretbox_KEYBYTES} bytes long`);
+            expect(() => wallet.encrypt(data, invalidKey)).to.throw(`Key must be a ${sodium.crypto_secretbox_KEYBYTES} bytes long buffer`);
         });
 
         it('should throw an error if the decryption key is invalid', () => {
             const data = JSON.stringify({ test: 'data' });
-            const encryptionKey = b4a.alloc(wallet.encryptionKeyBytes).fill('rightKey123!"§');
-            const invalidKey = b4a.alloc(wallet.encryptionKeyBytes / 2).fill('wrongKey123!"§'); // Invalid key length
+            const encryptionKey = b4a.alloc(32).fill('rightKey123!"§');
+            const invalidKey = b4a.alloc(16).fill('wrongKey123!"§'); // Invalid key length
 
             const encryptedData = wallet.encrypt(data, encryptionKey);
 

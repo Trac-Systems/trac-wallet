@@ -5,12 +5,11 @@ import fs from 'fs';
 import readline from 'readline';
 import tty from 'tty'
 import b4a from 'b4a';
+import {RANDOM_BUFFER_SIZE, ENCRYPTION_KEY_BYTES} from './constants.js';
 
-const RANDOM_BUFFER_SIZE = 32;
 class Wallet {
     #keyPair;
     #isVerifyOnly;
-    #encryptionKeyBytes
 
     /**
      * Creates a new Wallet instance.
@@ -20,7 +19,6 @@ class Wallet {
      */
     constructor(options = {}) {
         this.#isVerifyOnly = options.isVerifyOnly || false;
-        this.#encryptionKeyBytes = sodium.crypto_secretbox_KEYBYTES;
 
         this.#keyPair = {
             publicKey: null,
@@ -48,14 +46,6 @@ class Wallet {
             return null;
         }
         return this.#keyPair.secretKey.toString('hex');
-    }
-
-    /**
-     * Returns the size of the encryption key in bytes.
-     * @returns {number} The size of the encryption key in bytes.
-     */
-    get encryptionKeyBytes() {
-        return this.#encryptionKeyBytes;
     }
 
     /**
@@ -206,8 +196,8 @@ class Wallet {
      * @returns {Object} The encrypted data as JSON containing nonce and cyphertext.
      */
     encrypt(data, key) {
-        if (key.length !== sodium.crypto_secretbox_KEYBYTES) {
-            throw new Error(`Key must be ${sodium.crypto_secretbox_KEYBYTES} bytes long`);
+        if (!Buffer.isBuffer(key) || key.length !== ENCRYPTION_KEY_BYTES) {
+            throw new Error(`Key must be a ${ENCRYPTION_KEY_BYTES} bytes long buffer`);
         }
 
         const nonce = b4a.alloc(sodium.crypto_secretbox_NONCEBYTES);
@@ -237,8 +227,8 @@ class Wallet {
      * @throws Will throw an error if decryption fails.
      */
     decrypt(encryptedData, key) {
-        if (key.length !== sodium.crypto_secretbox_KEYBYTES) {
-            throw new Error(`Key must be ${sodium.crypto_secretbox_KEYBYTES} bytes long`);
+        if (key.length !== ENCRYPTION_KEY_BYTES) {
+            throw new Error(`Key must be ${ENCRYPTION_KEY_BYTES} bytes long`);
         }
 
         const data = typeof encryptedData === 'string' ? JSON.parse(encryptedData) : encryptedData;
@@ -291,7 +281,7 @@ class Wallet {
             fileData = message
         }
         else {
-            const key = b4a.alloc(this.encryptionKeyBytes);
+            const key = b4a.alloc(ENCRYPTION_KEY_BYTES);
             const salt = b4a.alloc(sodium.crypto_pwhash_SALTBYTES);
             sodium.randombytes_buf(salt);
             sodium.crypto_pwhash(
@@ -332,7 +322,7 @@ class Wallet {
                 throw new Error('Could not decrypt keyfile. Data is invalid or corrupted');
             }
 
-            const key = b4a.alloc(this.encryptionKeyBytes);
+            const key = b4a.alloc(ENCRYPTION_KEY_BYTES);
             const salt = b4a.from(data.salt, 'hex');
 
             sodium.crypto_pwhash(
