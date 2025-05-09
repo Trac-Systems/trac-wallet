@@ -107,6 +107,14 @@ describe('Wallet', () => {
             expect(emptyWallet.publicKey).to.be.null;
         });
 
+        it('should not generate keys with null input', () => {
+            const options = {
+                mnemonic: null
+            };
+            const emptyWallet = new PeerWallet(options);
+            expect(emptyWallet.publicKey).to.be.null;
+        });
+
         it('should set a valid key pair', async () => {
             const wallet1 = new PeerWallet();
             await wallet1.generateKeyPair(validMnemonic);
