@@ -277,43 +277,49 @@ class Wallet {
         if (!this.#keyPair.secretKey) {
             throw new Error('No key pair found');
         }
+
+        if (typeof encryptionKey !== 'string') {
+            throw new Error('Encryption key must be a string');
+        }
+
         const data = {
             publicKey: this.#keyPair.publicKey.toString('hex'),
             secretKey: this.#keyPair.secretKey.toString('hex')
         };
+
         if(mnemonic !== null ){
             data['mnemonic'] = mnemonic;
         }
 
         const message = JSON.stringify(data, null, 2);
 
-        let fileData;
-        if (encryptionKey === null) {
-            fileData = message
+        const key = b4a.alloc(ENCRYPTION_KEY_BYTES);
+        const salt = b4a.alloc(sodium.crypto_pwhash_SALTBYTES);
+        sodium.randombytes_buf(salt);
+        sodium.crypto_pwhash(
+            key,
+            b4a.from(encryptionKey, 'utf8'),
+            salt,
+            sodium.crypto_pwhash_OPSLIMIT_MODERATE,
+            sodium.crypto_pwhash_MEMLIMIT_MODERATE,
+            sodium.crypto_pwhash_ALG_ARGON2I13
+        );
+
+        const fdata = this.encrypt(message, key);
+        fdata.salt = salt.toString('hex');
+        const fileData = JSON.stringify(fdata, null, 2);
+
+        try {
+            fs.writeFileSync(filePath, fileData);
+            console.log('Key pair exported to', filePath);
+        } catch (err) {
+            console.error('Error writing to file:', err);
         }
-        else {
-            const key = b4a.alloc(ENCRYPTION_KEY_BYTES);
-            const salt = b4a.alloc(sodium.crypto_pwhash_SALTBYTES);
-            sodium.randombytes_buf(salt);
-            sodium.crypto_pwhash(
-                key,
-                b4a.from(encryptionKey, 'utf8'),
-                salt,
-                sodium.crypto_pwhash_OPSLIMIT_MODERATE,
-                sodium.crypto_pwhash_MEMLIMIT_MODERATE,
-                sodium.crypto_pwhash_ALG_ARGON2I13
-            );
-
-            const fdata = this.encrypt(message, key);
-            fdata.salt = salt.toString('hex');
-            fileData = JSON.stringify(fdata, null, 2);
-
+        finally {
             // Cleanup sensitive data from memory
             sodium.sodium_memzero(key);
             sodium.sodium_memzero(salt);
         }
-
-        fs.writeFileSync(filePath, fileData);
     }
 
     /**
@@ -327,7 +333,16 @@ class Wallet {
             throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
         }
 
-        let data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        let data;
+        try {
+            if (!fs.existsSync(filePath)) {
+                throw new Error(`File ${filePath} not found`);
+            }
+            data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        } catch (err) {
+            throw new Error('Error importing file:', err);
+        }
+
         if (encryptionKey !== null) {
             if (!data.salt || !data.nonce || !data.ciphertext) {
                 throw new Error('Could not decrypt keyfile. Data is invalid or corrupted');
@@ -352,7 +367,6 @@ class Wallet {
             sodium.sodium_memzero(salt);
         }
         this.#keyPair = this.sanitizeKeyPair(data.publicKey, data.secretKey);
-        // TODO: Purge data from memory after this step
         this.#isVerifyOnly = false;
     }
 
