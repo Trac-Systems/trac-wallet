@@ -17,7 +17,7 @@
   "dependencies": {
     "b4a": "1.6.7",
     "bare-fs": "^4.0.2",
-    "bare-readline": "^1.0.7",
+    "bare-readline": "1.0.7",
     "bare-tty": "^5.0.2",
     "bip39-mnemonic": "^2.2.0",
     "fs": "npm:bare-node-fs",
