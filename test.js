@@ -228,7 +228,7 @@ describe('Wallet', () => {
     });
 
     describe('Exporting Keys', () => {
-        it('should export keys to a file', async () => {
+        it('should export keys to a file - no encryption', async () => {
             const filePath = './wallet.json';
             const wallet1 = new PeerWallet();
             await wallet1.generateKeyPair(validMnemonic);
@@ -240,7 +240,7 @@ describe('Wallet', () => {
             fs.unlinkSync(filePath); // Clean up the file after test
         });
 
-        it('should be able to import keys from a file', async () => {
+        it('should be able to import keys from a file - no encryption', async () => {
             const filePath = './wallet.json';
             const wallet1 = new PeerWallet();
             await wallet1.generateKeyPair(validMnemonic);
@@ -257,7 +257,7 @@ describe('Wallet', () => {
             fs.unlinkSync(filePath); // Clean up the file after test
         });
 
-        it('should correctly export and import a key file with encryption', async () => {
+        it('should correctly export and import a key file - with encryption', async () => {
             const filePath = './wallet.json';
             const encryptionKey = 'someEncryptionKey'
 
@@ -269,6 +269,7 @@ describe('Wallet', () => {
             const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
             expect(data.nonce).to.not.be.undefined;
             expect(data.ciphertext).to.not.be.undefined;
+            expect(data.salt).to.not.be.undefined;
             expect(data.publicKey).to.be.undefined;
             expect(data.secretKey).to.be.undefined;
             expect(data.mnemonic).to.be.undefined;

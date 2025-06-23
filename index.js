@@ -273,7 +273,7 @@ class Wallet {
      * @param {string} [encryptionKey=""] - The encryption key to use for encrypting the file. If not provided, the file will not be encrypted.
      * @throws Will throw an error if the key pair is not set.
      */
-    exportToFile(filePath, mnemonic = null, encryptionKey = "") { // TODO: In the future, the key parameter should not be optional!
+    exportToFile(filePath, mnemonic = null, encryptionKey = "") { // TODO: In the future, the encryptionKey parameter should not be optional!
         if (!this.#keyPair.secretKey) {
             throw new Error('No key pair found');
         }
@@ -453,6 +453,7 @@ class Wallet {
 
 class PeerWallet extends Wallet {
     #isVerifyOnly;
+    #readlineInstance = null;
 
     constructor(options = {}) {
         super(options);
@@ -515,6 +516,10 @@ class PeerWallet extends Wallet {
                     output: new tty.WriteStream(1)
                 });
             }
+            if (this.#readlineInstance != null) {
+                await this.#readlineInstance.close();
+            }
+            this.#readlineInstance = rl;
             let response;
             let choice = '';
             console.log("\n[1]. Generate new mnemonic phrase\n",
@@ -612,6 +617,9 @@ class PeerWallet extends Wallet {
                 choice = '';
                 return this.#setupKeypairInteractiveMode(readline_instance);
             }
+            if (this.#readlineInstance !== null) {
+                await this.#readlineInstance.close();
+            }
             return response;
         }
         // desktop mode if pear
@@ -619,6 +627,12 @@ class PeerWallet extends Wallet {
             type: 'mnemonic',
             value: null
         };
+    }
+
+    async close() {
+        if (this.#readlineInstance !== null) {
+            await this.#readlineInstance.close();
+        }
     }
 
     async sleep(ms) {
