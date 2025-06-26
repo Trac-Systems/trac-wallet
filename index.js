@@ -5,8 +5,8 @@ import fs from 'fs';
 import readline from 'readline';
 import tty from 'tty'
 import b4a from 'b4a';
+import {RANDOM_BUFFER_SIZE, ENCRYPTION_KEY_BYTES} from './constants.js';
 
-const RANDOM_BUFFER_SIZE = 32;
 class Wallet {
     #keyPair;
     #isVerifyOnly;
@@ -41,6 +41,10 @@ class Wallet {
         return this.#keyPair.publicKey.toString('hex');
     }
 
+    /**
+     * Returns the secret key as a hex string.
+     * @returns {string|null} The secret key in hex format or null if not set.
+     */
     get secretKey() {
         if (!this.#keyPair.secretKey) {
             return null;
@@ -97,11 +101,18 @@ class Wallet {
         return generateMnemonic();
     }
 
+    /**
+     * Creates a hash of the given message using the specified algorithm.
+     * @param {string} type - The hash algorithm to use (e.g., 'sha256', 'sha1', 'sha384', 'sha512').
+     * @param {string} message - The message to hash.
+     * @returns {string} The hash in hex format.
+    */
+    // TODO: Refactor / improve security for this function
     async createHash(type, message){
         if(type === 'sha256'){
             const out = b4a.alloc(sodium.crypto_hash_sha256_BYTES);
             sodium.crypto_hash_sha256(out, b4a.from(message));
-            return b4a.toString(out, 'hex');
+            return b4a.toString(out, 'hex'); // TODO: Return a buffer insteado of a string
         }
         let createHash = null;
         if(global.Pear !== undefined){
@@ -117,7 +128,7 @@ class Wallet {
             const hash = await crypto.subtle.digest(_type, data);
             const hashArray = Array.from(new Uint8Array(hash));
             return hashArray
-                .map((b) => b.toString(16).padStart(2, "0"))
+                .map((b) => b.toString(16).padStart(2, "0")) // TODO: Return a buffer instead of a string
                 .join("");
         } else {
             return crypto.createHash(type).update(message).digest('hex')
@@ -186,38 +197,194 @@ class Wallet {
         const messageBuffer = b4a.isBuffer(message) ? message : b4a.from(message);
         const signature = b4a.alloc(sodium.crypto_sign_BYTES);
         sodium.crypto_sign_detached(signature, messageBuffer, keyToUse);
-        return signature.toString('hex');
+        return signature.toString('hex'); // TODO: Return a buffer instead of a string in the future
+    }
+
+    /**
+     * Encrypts the exported key file data
+     * @param {Buffer} data - The data to encrypt.
+     * @param {Buffer} key - A 32-byte encryption key.
+     * @returns {Object} The encrypted data as JSON containing nonce and cyphertext.
+     */
+    encrypt(data, key) {
+        if (!b4a.isBuffer(key) || key.length !== ENCRYPTION_KEY_BYTES) {
+            throw new Error(`Key must be a ${ENCRYPTION_KEY_BYTES} bytes long buffer`);
+        }
+
+        if (!b4a.isBuffer(data)) {
+            throw new Error('Data must be a Buffer');
+        }
+
+        const nonce = b4a.alloc(sodium.crypto_secretbox_NONCEBYTES);
+        sodium.randombytes_buf(nonce);
+        const ciphertext = b4a.alloc(data.length + sodium.crypto_secretbox_MACBYTES);
+        sodium.crypto_secretbox_easy(ciphertext, data, nonce, key);
+
+        const returnData = {
+            nonce: nonce.toString('hex'),
+            ciphertext: ciphertext.toString('hex')
+        };
+
+        // Cleanup sensitive data from memory
+        sodium.sodium_memzero(nonce);
+        sodium.sodium_memzero(ciphertext);
+
+        return returnData;
+    }
+
+    /**
+     * Decrypts the encrypted key file data using sodium-native.
+     * @param {string|Object} encryptedData - The encrypted data as a JSON string or an object.
+     * @param {Buffer} key - A 32-byte decryption key.
+     * @returns {Object} The decrypted JSON containing the key pair.
+     * @throws Will throw an error if decryption fails.
+     */
+    decrypt(encryptedData, key) {
+        if (key.length !== ENCRYPTION_KEY_BYTES) {
+            throw new Error(`Key must be ${ENCRYPTION_KEY_BYTES} bytes long`);
+        }
+
+        const data = typeof encryptedData === 'string' ? JSON.parse(encryptedData) : encryptedData;
+
+        if (!data.nonce || !data.ciphertext) {
+            throw new Error('Invalid encrypted data format. Missing nonce or ciphertext.');
+        }
+
+        const nonceBuffer = b4a.from(data.nonce, 'hex');
+        const ciphertextBuffer = b4a.from(data.ciphertext, 'hex');
+        const messageBuffer = b4a.alloc(ciphertextBuffer.length - sodium.crypto_secretbox_MACBYTES);
+
+        if (!sodium.crypto_secretbox_open_easy(messageBuffer, ciphertextBuffer, nonceBuffer, key)) {
+            throw new Error('Failed to decrypt data. Invalid key or corrupted data.');
+        }
+
+        const returnData = JSON.parse(messageBuffer.toString('utf8'));
+
+        // Cleanup sensitive data from memory
+        sodium.sodium_memzero(nonceBuffer);
+        sodium.sodium_memzero(ciphertextBuffer);
+        sodium.sodium_memzero(messageBuffer);
+
+        return returnData;
     }
 
     /**
      * Exports the key pair to a JSON file.
      * @param {string} filePath - The path to the file where the keys will be saved.
+     * @param {string} [mnemonic=null] - The mnemonic phrase to include in the file. If null, it will not be included.
+     * @param {Buffer|null} [encryptionKey=""] - The encryption key to use for encrypting the file. If not provided, the file will not be encrypted.
      * @throws Will throw an error if the key pair is not set.
      */
-    exportToFile(filePath, mnemonic = null) {
+    exportToFile(filePath, mnemonic = null, encryptionKey = null) { // TODO: In the future, the encryptionKey parameter should not be optional!
         if (!this.#keyPair.secretKey) {
             throw new Error('No key pair found');
         }
+
+        let fileData = "";
+        let key = null;
+        let salt = null;
+        let shouldEncrypt = false; // TODO: This is just a temporary solution for backward compatibility. In the future, the encryption will be mandatory
+
+        if (!b4a.isBuffer(encryptionKey) && encryptionKey !== null) {
+            throw new Error('Encryption key must either be a buffer or null');
+        }
+
+        if (encryptionKey) {
+            shouldEncrypt = true;
+        }
+
         const data = {
             publicKey: this.#keyPair.publicKey.toString('hex'),
             secretKey: this.#keyPair.secretKey.toString('hex')
         };
-        if(mnemonic !== null ){
-            data['mnemonic'] = mnemonic;
+
+        const safeMnemonic = this.sanitizeMnemonic(mnemonic);
+        if (safeMnemonic !== null) {
+            data['mnemonic'] = safeMnemonic;
         }
-        fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+
+        const message = JSON.stringify(data, null, 2);
+
+        if (!shouldEncrypt) {
+            fileData = message;
+        } else {
+            key = b4a.alloc(ENCRYPTION_KEY_BYTES);
+            salt = b4a.alloc(sodium.crypto_pwhash_SALTBYTES);
+            sodium.randombytes_buf(salt);
+            sodium.crypto_pwhash(
+                key,
+                encryptionKey,
+                salt,
+                sodium.crypto_pwhash_OPSLIMIT_MODERATE,
+                sodium.crypto_pwhash_MEMLIMIT_MODERATE,
+                sodium.crypto_pwhash_ALG_ARGON2I13
+            );
+
+            const msgBuf = b4a.from(message, 'utf8');
+            const fdata = this.encrypt(msgBuf, key);
+            fdata.salt = salt.toString('hex');
+            fileData = JSON.stringify(fdata, null, 2);
+        }
+
+        try {
+            fs.writeFileSync(filePath, fileData);
+            console.log('Key pair exported to', filePath);
+        } catch (err) {
+            console.error('Error writing to file:', err);
+        }
+        finally {
+            // Cleanup sensitive data from memory
+            if (shouldEncrypt) {
+                sodium.sodium_memzero(key);
+                sodium.sodium_memzero(salt);
+            }
+        }
     }
 
     /**
      * Imports a key pair from a JSON file. If the wallet is set to verifyOnly mode, it will return to standard mode
      * @param {string} filePath - The path to the file where the keys are saved.
+     * @param {Buffer|null} [encryptionKey=""] - The encryption key to use for decrypting the file. If not provided, the function assumes the file is not encrypted.
      * @throws Will throw an error if the wallet is set to verify only.
      */
-    importFromFile(filePath) {
+    importFromFile(filePath, encryptionKey = null) { // TODO: In the future, the key parameter should not be optional!
         if (this.#isVerifyOnly) {
             throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
         }
-        const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+
+        let data;
+        try {
+            if (!fs.existsSync(filePath)) {
+                throw new Error(`File ${filePath} not found`);
+            }
+            data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        } catch (err) {
+            throw new Error('Error importing file:', err);
+        }
+
+        if (encryptionKey !== null) {
+            if (!data.salt || !data.nonce || !data.ciphertext) {
+                throw new Error('Could not decrypt keyfile. Data is invalid or corrupted');
+            }
+
+            const key = b4a.alloc(ENCRYPTION_KEY_BYTES);
+            const salt = b4a.from(data.salt, 'hex');
+
+            sodium.crypto_pwhash(
+                key,
+                b4a.from(encryptionKey, 'utf8'),
+                salt,
+                sodium.crypto_pwhash_OPSLIMIT_MODERATE,
+                sodium.crypto_pwhash_MEMLIMIT_MODERATE,
+                sodium.crypto_pwhash_ALG_ARGON2I13
+            );
+
+            data = this.decrypt(data, key);
+
+            // Cleanup sensitive data from memory
+            sodium.sodium_memzero(key);
+            sodium.sodium_memzero(salt);
+        }
         this.#keyPair = this.sanitizeKeyPair(data.publicKey, data.secretKey);
         this.#isVerifyOnly = false;
     }
@@ -237,7 +404,7 @@ class Wallet {
         // Check if all words are valid
         const words = sanitized.split(' ');
         if (!validateMnemonic(sanitized)) {
-            throw new Error('Invalid mnemonic. Please, provide a valid 12-word mnemonic');
+            throw new Error('Invalid mnemonic phrase');
         }
 
         return sanitized;
@@ -305,6 +472,7 @@ class Wallet {
 
 class PeerWallet extends Wallet {
     #isVerifyOnly;
+    #readlineInstance = null;
 
     constructor(options = {}) {
         super(options);
@@ -367,6 +535,10 @@ class PeerWallet extends Wallet {
                     output: new tty.WriteStream(1)
                 });
             }
+            if (this.#readlineInstance != null) {
+                await this.#readlineInstance.close();
+            }
+            this.#readlineInstance = rl;
             let response;
             let choice = '';
             console.log("\n[1]. Generate new mnemonic phrase\n",
@@ -464,6 +636,9 @@ class PeerWallet extends Wallet {
                 choice = '';
                 return this.#setupKeypairInteractiveMode(readline_instance);
             }
+            if (this.#readlineInstance !== null) {
+                await this.#readlineInstance.close();
+            }
             return response;
         }
         // desktop mode if pear
@@ -471,6 +646,12 @@ class PeerWallet extends Wallet {
             type: 'mnemonic',
             value: null
         };
+    }
+
+    async close() {
+        if (this.#readlineInstance !== null) {
+            await this.#readlineInstance.close();
+        }
     }
 
     async sleep(ms) {
