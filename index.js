@@ -202,7 +202,7 @@ class Wallet {
 
     /**
      * Encrypts the exported key file data
-     * @param {string} data - The JSON string of the key pair to encrypt.
+     * @param {Buffer} data - The data to encrypt.
      * @param {Buffer} key - A 32-byte encryption key.
      * @returns {Object} The encrypted data as JSON containing nonce and cyphertext.
      */
@@ -211,19 +211,21 @@ class Wallet {
             throw new Error(`Key must be a ${ENCRYPTION_KEY_BYTES} bytes long buffer`);
         }
 
+        if (!b4a.isBuffer(data)) {
+            throw new Error('Data must be a Buffer');
+        }
+
         const nonce = b4a.alloc(sodium.crypto_secretbox_NONCEBYTES);
         sodium.randombytes_buf(nonce);
-        const messageBuffer = b4a.from(data, 'utf8');
-        const ciphertext = b4a.alloc(messageBuffer.length + sodium.crypto_secretbox_MACBYTES);
+        const ciphertext = b4a.alloc(data.length + sodium.crypto_secretbox_MACBYTES);
+        sodium.crypto_secretbox_easy(ciphertext, data, nonce, key);
 
-        sodium.crypto_secretbox_easy(ciphertext, messageBuffer, nonce, key);
         const returnData = {
             nonce: nonce.toString('hex'),
             ciphertext: ciphertext.toString('hex')
         };
 
         // Cleanup sensitive data from memory
-        sodium.sodium_memzero(messageBuffer);
         sodium.sodium_memzero(nonce);
         sodium.sodium_memzero(ciphertext);
 
@@ -270,7 +272,7 @@ class Wallet {
      * Exports the key pair to a JSON file.
      * @param {string} filePath - The path to the file where the keys will be saved.
      * @param {string} [mnemonic=null] - The mnemonic phrase to include in the file. If null, it will not be included.
-     * @param {string} [encryptionKey=""] - The encryption key to use for encrypting the file. If not provided, the file will not be encrypted.
+     * @param {Buffer|null} [encryptionKey=""] - The encryption key to use for encrypting the file. If not provided, the file will not be encrypted.
      * @throws Will throw an error if the key pair is not set.
      */
     exportToFile(filePath, mnemonic = null, encryptionKey = null) { // TODO: In the future, the encryptionKey parameter should not be optional!
@@ -283,11 +285,11 @@ class Wallet {
         let salt = null;
         let shouldEncrypt = false; // TODO: This is just a temporary solution for backward compatibility. In the future, the encryption will be mandatory
 
-        if (typeof encryptionKey !== 'string' && encryptionKey !== null) {
-            throw new Error('Encryption key must be a string or null');
+        if (!b4a.isBuffer(encryptionKey) && encryptionKey !== null) {
+            throw new Error('Encryption key must either be a buffer or null');
         }
 
-        if (encryptionKey) { // TODO: Should we also include key sanitization (e.g.: minimum length) or is it the responsibility of the UI?
+        if (encryptionKey) {
             shouldEncrypt = true;
         }
 
@@ -296,8 +298,9 @@ class Wallet {
             secretKey: this.#keyPair.secretKey.toString('hex')
         };
 
-        if (mnemonic !== null) {
-            data['mnemonic'] = mnemonic;
+        const safeMnemonic = this.sanitizeMnemonic(mnemonic);
+        if (safeMnemonic !== null) {
+            data['mnemonic'] = safeMnemonic;
         }
 
         const message = JSON.stringify(data, null, 2);
@@ -310,14 +313,15 @@ class Wallet {
             sodium.randombytes_buf(salt);
             sodium.crypto_pwhash(
                 key,
-                b4a.from(encryptionKey, 'utf8'),
+                encryptionKey,
                 salt,
                 sodium.crypto_pwhash_OPSLIMIT_MODERATE,
                 sodium.crypto_pwhash_MEMLIMIT_MODERATE,
                 sodium.crypto_pwhash_ALG_ARGON2I13
             );
 
-            const fdata = this.encrypt(message, key);
+            const msgBuf = b4a.from(message, 'utf8');
+            const fdata = this.encrypt(msgBuf, key);
             fdata.salt = salt.toString('hex');
             fileData = JSON.stringify(fdata, null, 2);
         }
@@ -340,7 +344,7 @@ class Wallet {
     /**
      * Imports a key pair from a JSON file. If the wallet is set to verifyOnly mode, it will return to standard mode
      * @param {string} filePath - The path to the file where the keys are saved.
-     * @param {string} [encryptionKey=""] - The encryption key to use for decrypting the file. If not provided, the function assumes the file is not encrypted.
+     * @param {Buffer|null} [encryptionKey=""] - The encryption key to use for decrypting the file. If not provided, the function assumes the file is not encrypted.
      * @throws Will throw an error if the wallet is set to verify only.
      */
     importFromFile(filePath, encryptionKey = null) { // TODO: In the future, the key parameter should not be optional!
