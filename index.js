@@ -38,7 +38,7 @@ class Wallet {
         if (!this.#keyPair.publicKey) {
             return null;
         }
-        return this.#keyPair.publicKey.toString('hex');
+        return this.#keyPair.publicKey;
     }
 
     /**
@@ -49,7 +49,7 @@ class Wallet {
         if (!this.#keyPair.secretKey) {
             return null;
         }
-        return this.#keyPair.secretKey.toString('hex');
+        return this.#keyPair.secretKey;
     }
 
     /**
@@ -112,9 +112,9 @@ class Wallet {
         if(type === 'sha256'){
             const out = b4a.alloc(sodium.crypto_hash_sha256_BYTES);
             sodium.crypto_hash_sha256(out, b4a.from(message));
-            return b4a.toString(out, 'hex'); // TODO: Return a buffer insteado of a string
+            return out;
         }
-        let createHash = null;
+
         if(global.Pear !== undefined){
             let _type = '';
             switch(type.toLowerCase()){
@@ -126,12 +126,10 @@ class Wallet {
             const encoder = new TextEncoder();
             const data = encoder.encode(message);
             const hash = await crypto.subtle.digest(_type, data);
-            const hashArray = Array.from(new Uint8Array(hash));
-            return hashArray
-                .map((b) => b.toString(16).padStart(2, "0")) // TODO: Return a buffer instead of a string
-                .join("");
+            const hashArray = b4a.from(new Uint8Array(hash));
+            return hashArray;
         } else {
-            return crypto.createHash(type).update(message).digest('hex')
+            return b4a.from(crypto.createHash(type).update(message).digest('hex'), 'hex'); // TODO: Implement tests for this part of the code
         }
     }
 
@@ -197,7 +195,7 @@ class Wallet {
         const messageBuffer = b4a.isBuffer(message) ? message : b4a.from(message);
         const signature = b4a.alloc(sodium.crypto_sign_BYTES);
         sodium.crypto_sign_detached(signature, messageBuffer, keyToUse);
-        return signature.toString('hex'); // TODO: Return a buffer instead of a string in the future
+        return signature;
     }
 
     /**
