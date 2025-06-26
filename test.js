@@ -232,11 +232,14 @@ describe('Wallet', () => {
             const filePath = './wallet.json';
             const wallet1 = new PeerWallet();
             await wallet1.generateKeyPair(validMnemonic);
-            wallet1.exportToFile(filePath);
+            wallet1.exportToFile(filePath, validMnemonic);
             const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-            expect(data.salt).to.not.be.undefined;
-            expect(data.nonce).to.not.be.undefined;
-            expect(data.ciphertext).to.not.be.undefined;
+            expect(data.salt).to.be.undefined;
+            expect(data.nonce).to.be.undefined;
+            expect(data.ciphertext).to.be.undefined;
+            expect(data.publicKey).to.not.be.undefined;
+            expect(data.secretKey).to.not.be.undefined;
+            expect(data.mnemonic).to.not.be.undefined;
             fs.unlinkSync(filePath); // Clean up the file after test
         });
 
