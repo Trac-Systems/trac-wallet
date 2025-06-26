@@ -273,13 +273,22 @@ class Wallet {
      * @param {string} [encryptionKey=""] - The encryption key to use for encrypting the file. If not provided, the file will not be encrypted.
      * @throws Will throw an error if the key pair is not set.
      */
-    exportToFile(filePath, mnemonic = null, encryptionKey = "") { // TODO: In the future, the encryptionKey parameter should not be optional!
+    exportToFile(filePath, mnemonic = null, encryptionKey = null) { // TODO: In the future, the encryptionKey parameter should not be optional!
         if (!this.#keyPair.secretKey) {
             throw new Error('No key pair found');
         }
 
-        if (typeof encryptionKey !== 'string') {
-            throw new Error('Encryption key must be a string');
+        let fileData = "";
+        let key = null;
+        let salt = null;
+        let shouldEncrypt = false; // TODO: This is just a temporary solution for backward compatibility. In the future, the encryption will be mandatory
+
+        if (typeof encryptionKey !== 'string' && encryptionKey !== null) {
+            throw new Error('Encryption key must be a string or null');
+        }
+
+        if (encryptionKey) { // TODO: Should we also include key sanitization (e.g.: minimum length) or is it the responsibility of the UI?
+            shouldEncrypt = true;
         }
 
         const data = {
@@ -287,27 +296,31 @@ class Wallet {
             secretKey: this.#keyPair.secretKey.toString('hex')
         };
 
-        if(mnemonic !== null ){
+        if (mnemonic !== null) {
             data['mnemonic'] = mnemonic;
         }
 
         const message = JSON.stringify(data, null, 2);
 
-        const key = b4a.alloc(ENCRYPTION_KEY_BYTES);
-        const salt = b4a.alloc(sodium.crypto_pwhash_SALTBYTES);
-        sodium.randombytes_buf(salt);
-        sodium.crypto_pwhash(
-            key,
-            b4a.from(encryptionKey, 'utf8'),
-            salt,
-            sodium.crypto_pwhash_OPSLIMIT_MODERATE,
-            sodium.crypto_pwhash_MEMLIMIT_MODERATE,
-            sodium.crypto_pwhash_ALG_ARGON2I13
-        );
+        if (!shouldEncrypt) {
+            fileData = message;
+        } else {
+            key = b4a.alloc(ENCRYPTION_KEY_BYTES);
+            salt = b4a.alloc(sodium.crypto_pwhash_SALTBYTES);
+            sodium.randombytes_buf(salt);
+            sodium.crypto_pwhash(
+                key,
+                b4a.from(encryptionKey, 'utf8'),
+                salt,
+                sodium.crypto_pwhash_OPSLIMIT_MODERATE,
+                sodium.crypto_pwhash_MEMLIMIT_MODERATE,
+                sodium.crypto_pwhash_ALG_ARGON2I13
+            );
 
-        const fdata = this.encrypt(message, key);
-        fdata.salt = salt.toString('hex');
-        const fileData = JSON.stringify(fdata, null, 2);
+            const fdata = this.encrypt(message, key);
+            fdata.salt = salt.toString('hex');
+            fileData = JSON.stringify(fdata, null, 2);
+        }
 
         try {
             fs.writeFileSync(filePath, fileData);
@@ -317,8 +330,10 @@ class Wallet {
         }
         finally {
             // Cleanup sensitive data from memory
-            sodium.sodium_memzero(key);
-            sodium.sodium_memzero(salt);
+            if (shouldEncrypt) {
+                sodium.sodium_memzero(key);
+                sodium.sodium_memzero(salt);
+            }
         }
     }
 
@@ -328,7 +343,7 @@ class Wallet {
      * @param {string} [encryptionKey=""] - The encryption key to use for decrypting the file. If not provided, the function assumes the file is not encrypted.
      * @throws Will throw an error if the wallet is set to verify only.
      */
-    importFromFile(filePath, encryptionKey = "") { // TODO: In the future, the key parameter should not be optional!
+    importFromFile(filePath, encryptionKey = null) { // TODO: In the future, the key parameter should not be optional!
         if (this.#isVerifyOnly) {
             throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
         }
