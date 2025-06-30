@@ -54,7 +54,7 @@ describe('Wallet', () => {
         it('should accept a valid mnemonic input', async () => {
             const walletLocal = new PeerWallet();
             await walletLocal.generateKeyPair(validMnemonic);
-            expect(walletLocal.publicKey).to.equal('e848b77918a7e5d7b990b47751fb8e90256743cabbe2e15f016ae7cc621fe108');
+            expect(b4a.compare(walletLocal.publicKey, b4a.from('e848b77918a7e5d7b990b47751fb8e90256743cabbe2e15f016ae7cc621fe108', 'hex'))).to.equal(0);
         });
 
         it('should throw an error for mnemonic containing less than 24 words',  async () => {
@@ -124,12 +124,12 @@ describe('Wallet', () => {
                 secretKey: "2f1f7961ea38fbf7735eebb7d2faddaa7cea5fef637e60665f976907f4f29d55e848b77918a7e5d7b990b47751fb8e90256743cabbe2e15f016ae7cc621fe108"
             };
             wallet2.keyPair = keyPair;
-            expect(wallet2.publicKey.toString).to.equal(wallet1.publicKey.toString);
+            expect(b4a.compare(wallet2.publicKey, wallet1.publicKey)).to.equal(0);
 
             const message = 'Hello, world!';
             const sig1 = wallet1.sign(message);
             const sig2 = wallet2.sign(message);
-            expect(sig1).to.equal(sig2);
+            expect(b4a.compare(sig1, sig2)).to.equal(0);
         });
 
         it('should throw an error for invalid key pair', () => {
@@ -221,6 +221,7 @@ describe('Wallet', () => {
     });
 
     describe('Exporting Keys', () => {
+        // TODO: In the future, this test will need to change, as it will NOT be possible to export a non-encrypted file anymore
         it('should export keys to a file - no encryption', async () => {
             const filePath = './wallet.json';
             const wallet1 = new PeerWallet();
@@ -236,6 +237,7 @@ describe('Wallet', () => {
             fs.unlinkSync(filePath); // Clean up the file after test
         });
 
+        // TODO: In the future, this test will need to change, as it will NOT be possible to import a non-encrypted file anymore
         it('should be able to import keys from a file - no encryption', async () => {
             const filePath = './wallet.json';
             const wallet1 = new PeerWallet();
@@ -243,12 +245,12 @@ describe('Wallet', () => {
             wallet1.exportToFile(filePath);
             const newWallet = new PeerWallet();
             newWallet.importFromFile(filePath);
-            expect(newWallet.publicKey.toString).to.equal(wallet1.publicKey.toString);
+            expect(newWallet.publicKey.toString()).to.equal(wallet1.publicKey.toString());
 
             const message = 'Hello, world!';
             const sig1 = wallet1.sign(message);
             const sig2 = newWallet.sign(message);
-            expect(sig1).to.equal(sig2);
+            expect(b4a.compare(sig1, sig2)).to.equal(0);
 
             fs.unlinkSync(filePath); // Clean up the file after test
         });
@@ -273,13 +275,13 @@ describe('Wallet', () => {
             // Test importing with decryption
             const wallet2 = new PeerWallet();
             wallet2.importFromFile(filePath, encryptionKey);
-            expect(wallet2.publicKey.toString).to.equal(wallet1.publicKey.toString);
+            expect(b4a.compare(wallet2.publicKey, wallet1.publicKey)).to.equal(0);
 
             // Test signing and verifying a message
             const message = 'Hello, world!';
             const sig1 = wallet1.sign(message);
             const sig2 = wallet2.sign(message);
-            expect(sig1).to.equal(sig2);
+            expect(b4a.compare(sig1, sig2)).to.equal(0);
 
             fs.unlinkSync(filePath); // Clean up the file after test
         });
