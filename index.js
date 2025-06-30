@@ -267,6 +267,30 @@ class Wallet {
     }
 
     /**
+     * Derives a key from the password and salt using Argon2i.
+     * @param {Buffer} password - The password to derive the key from.
+     * @param {Buffer} salt - The salt to use for key derivation.
+     * @returns {Buffer} The derived key.
+     */
+    #deriveKey(password, salt) {
+        if (!b4a.isBuffer(password) || !b4a.isBuffer(salt)) {
+            throw new Error('Password and salt must be buffers');
+        }
+
+        const key = b4a.alloc(ENCRYPTION_KEY_BYTES);
+        sodium.crypto_pwhash(
+            key,
+            password,
+            salt,
+            sodium.crypto_pwhash_OPSLIMIT_MODERATE,
+            sodium.crypto_pwhash_MEMLIMIT_MODERATE,
+            sodium.crypto_pwhash_ALG_ARGON2I13
+        );
+
+        return key;
+    }
+
+    /**
      * Exports the key pair to a JSON file.
      * @param {string} filePath - The path to the file where the keys will be saved.
      * @param {string} [mnemonic=null] - The mnemonic phrase to include in the file. If null, it will not be included.
@@ -306,17 +330,9 @@ class Wallet {
         if (!shouldEncrypt) {
             fileData = message;
         } else {
-            key = b4a.alloc(ENCRYPTION_KEY_BYTES);
             salt = b4a.alloc(sodium.crypto_pwhash_SALTBYTES);
             sodium.randombytes_buf(salt);
-            sodium.crypto_pwhash(
-                key,
-                encryptionKey,
-                salt,
-                sodium.crypto_pwhash_OPSLIMIT_MODERATE,
-                sodium.crypto_pwhash_MEMLIMIT_MODERATE,
-                sodium.crypto_pwhash_ALG_ARGON2I13
-            );
+            key = this.#deriveKey(encryptionKey, salt);
 
             const msgBuf = b4a.from(message, 'utf8');
             const fdata = this.encrypt(msgBuf, key);
@@ -365,18 +381,9 @@ class Wallet {
                 throw new Error('Could not decrypt keyfile. Data is invalid or corrupted');
             }
 
-            const key = b4a.alloc(ENCRYPTION_KEY_BYTES);
             const salt = b4a.from(data.salt, 'hex');
-
-            sodium.crypto_pwhash(
-                key,
-                b4a.from(encryptionKey, 'utf8'),
-                salt,
-                sodium.crypto_pwhash_OPSLIMIT_MODERATE,
-                sodium.crypto_pwhash_MEMLIMIT_MODERATE,
-                sodium.crypto_pwhash_ALG_ARGON2I13
-            );
-
+            const key = this.#deriveKey(encryptionKey, salt);
+            
             data = this.decrypt(data, key);
 
             // Cleanup sensitive data from memory
