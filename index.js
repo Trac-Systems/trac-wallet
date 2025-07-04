@@ -10,6 +10,8 @@ import { RANDOM_BUFFER_SIZE, ENCRYPTION_KEY_BYTES } from './constants.js';
 class Wallet {
     #keyPair;
     #isVerifyOnly;
+    #address;
+    #tracNetworkMainnetPrefix = 0x01;
 
     /**
      * Creates a new Wallet instance.
@@ -28,6 +30,9 @@ class Wallet {
         if (options.mnemonic && !this.#isVerifyOnly) {
             this.generateKeyPair(options.mnemonic);
         }
+
+        this.networkPrefix = options.networkPrefix || this.#tracNetworkMainnetPrefix;
+        this.#address = this.#setupTracAddress();
     }
 
     /**
@@ -74,6 +79,43 @@ class Wallet {
             throw new Error('Invalid key pair. Please provide a valid object with publicKey and secretKey');
         }
         this.#keyPair = this.sanitizeKeyPair(keyPair.publicKey, keyPair.secretKey);
+    }
+
+    /**
+     * Returns the TRAC address for the wallet.
+     * If the public key is not set, returns null.
+     * If the address has not been generated yet, it will be created by calling #setupTracAddress().
+     * @returns {Buffer|null} The TRAC address as a Buffer, or null if the public key is not set.
+     */
+    get address() {
+        if (!this.#keyPair.publicKey) {
+            return null;
+        }
+
+        if (!this.#address) {
+            this.#setupTracAddress();
+        }
+
+        return this.#address;
+    }
+
+    /**
+     * Sets up the TRAC address for the wallet by concatenating the network prefix and the public key.
+     * The address is stored in the private #address property.
+     * If an error occurs (e.g., publicKey is not set), the address will be set to null.
+     * 
+     * @private
+     */
+    #setupTracAddress() {
+        const assembleAddress = () => {
+            try {
+                return b4a.concat([b4a.alloc(1, this.networkPrefix), this.publicKey]);
+            }
+            catch {
+                return null;
+            }
+        };
+        this.#address = assembleAddress();
     }
 
     /**
@@ -479,40 +521,9 @@ class PeerWallet extends Wallet {
     #isVerifyOnly;
     #readlineInstance = null;
 
-    #tracAddress = null;
-    #tracNetworkMainnetPrefix = 0x01;
-
     constructor(options = {}) {
         super(options);
         this.#isVerifyOnly = options.isVerifyOnly || false;
-        this.networkPrefix = options.networkPrefix || this.#tracNetworkMainnetPrefix;
-        if (this.publicKey) {
-            this.#tracAddress = this.#setupTracAddress();
-        }
-    }
-
-    get address() {
-        if (!this.publicKey) {
-            return null;
-        }
-
-        if (!this.#tracAddress) {
-            this.#setupTracAddress();
-        }
-
-        return this.#tracAddress;
-    }
-
-    #setupTracAddress() {
-        const assembleAddress = () => {
-            try {
-             return b4a.concat([b4a.alloc(1, this.networkPrefix), this.publicKey]);
-            }
-            catch {
-                return null;
-            }
-        };
-        this.#tracAddress = assembleAddress();
     }
 
     async initKeyPair(filePath, readline_instance = null) {
