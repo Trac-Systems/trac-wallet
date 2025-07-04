@@ -95,16 +95,27 @@ describe('Wallet', () => {
     });
 
     describe('Key Pair Generation', () => {
-        it('should generate a valid key pair', async () => {
-            const walletLocal = new PeerWallet();
+        it('should generate a valid key pair and address', async () => {
+            const networkPrefix = 0x10;
+            const walletLocal = new PeerWallet({networkPrefix: networkPrefix});
             await walletLocal.generateKeyPair(validMnemonic);
-            const buf = Buffer.from(walletLocal.publicKey, 'hex')
-            expect(buf).to.have.lengthOf(sodium.crypto_sign_PUBLICKEYBYTES);
+
+            expect(b4a.isBuffer(walletLocal.publicKey)).to.be.true;
+            expect(b4a.isBuffer(walletLocal.secretKey)).to.be.true;
+            expect(b4a.isBuffer(walletLocal.address)).to.be.true;
+            expect(walletLocal.publicKey).to.have.lengthOf(sodium.crypto_sign_PUBLICKEYBYTES);
+            expect(walletLocal.secretKey).to.have.lengthOf(sodium.crypto_sign_SECRETKEYBYTES);
+            expect(walletLocal.address).to.have.lengthOf(1 + sodium.crypto_sign_PUBLICKEYBYTES);
+            expect(walletLocal.address[0]).to.equal(walletLocal.networkPrefix);
+            expect(walletLocal.networkPrefix).to.equal(networkPrefix);
+            expect(b4a.equals(walletLocal.publicKey, walletLocal.address.slice(1))).to.be.true;
         });
 
         it('should not generate keys with empty input', () => {
             const emptyWallet = new PeerWallet();
             expect(emptyWallet.publicKey).to.be.null;
+            expect(emptyWallet.secretKey).to.be.null;
+            expect(emptyWallet.address).to.be.null;
         });
 
         it('should not generate keys with null input', () => {
@@ -113,6 +124,8 @@ describe('Wallet', () => {
             };
             const emptyWallet = new PeerWallet(options);
             expect(emptyWallet.publicKey).to.be.null;
+            expect(emptyWallet.secretKey).to.be.null;
+            expect(emptyWallet.address).to.be.null;
         });
 
         it('should set a valid key pair', async () => {
@@ -124,12 +137,14 @@ describe('Wallet', () => {
                 secretKey: "2f1f7961ea38fbf7735eebb7d2faddaa7cea5fef637e60665f976907f4f29d55e848b77918a7e5d7b990b47751fb8e90256743cabbe2e15f016ae7cc621fe108"
             };
             wallet2.keyPair = keyPair;
-            expect(b4a.compare(wallet2.publicKey, wallet1.publicKey)).to.equal(0);
+            expect(b4a.equals(wallet2.publicKey, wallet1.publicKey)).to.be.true;
+            expect(b4a.equals(wallet2.secretKey, wallet1.secretKey)).to.be.true;
+            expect(b4a.equals(wallet2.address, wallet1.address)).to.be.true;
 
             const message = 'Hello, world!';
             const sig1 = wallet1.sign(message);
             const sig2 = wallet2.sign(message);
-            expect(b4a.compare(sig1, sig2)).to.equal(0);
+            expect(b4a.equals(sig1, sig2)).to.be.true;
         });
 
         it('should throw an error for invalid key pair', () => {
