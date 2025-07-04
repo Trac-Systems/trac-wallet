@@ -5,11 +5,13 @@ import fs from 'fs';
 import readline from 'readline';
 import tty from 'tty'
 import b4a from 'b4a';
-import {RANDOM_BUFFER_SIZE, ENCRYPTION_KEY_BYTES} from './constants.js';
+import { RANDOM_BUFFER_SIZE, ENCRYPTION_KEY_BYTES } from './constants.js';
 
 class Wallet {
     #keyPair;
     #isVerifyOnly;
+    #address;
+    #tracNetworkMainnetPrefix = 0x01;
 
     /**
      * Creates a new Wallet instance.
@@ -28,6 +30,9 @@ class Wallet {
         if (options.mnemonic && !this.#isVerifyOnly) {
             this.generateKeyPair(options.mnemonic);
         }
+
+        this.networkPrefix = options.networkPrefix || this.#tracNetworkMainnetPrefix;
+        this.#address = this.#setupTracAddress();
     }
 
     /**
@@ -77,6 +82,43 @@ class Wallet {
     }
 
     /**
+     * Returns the TRAC address for the wallet.
+     * If the public key is not set, returns null.
+     * If the address has not been generated yet, it will be created by calling #setupTracAddress().
+     * @returns {Buffer|null} The TRAC address as a Buffer, or null if the public key is not set.
+     */
+    get address() {
+        if (!this.#keyPair.publicKey) {
+            return null;
+        }
+
+        if (!this.#address) {
+            this.#setupTracAddress();
+        }
+
+        return this.#address;
+    }
+
+    /**
+     * Sets up the TRAC address for the wallet by concatenating the network prefix and the public key.
+     * The address is stored in the private #address property.
+     * If an error occurs (e.g., publicKey is not set), the address will be set to null.
+     * 
+     * @private
+     */
+    #setupTracAddress() {
+        const assembleAddress = () => {
+            try {
+                return b4a.concat([b4a.alloc(1, this.networkPrefix), this.publicKey]);
+            }
+            catch {
+                return null;
+            }
+        };
+        this.#address = assembleAddress();
+    }
+
+    /**
      * Verifies a message signature.
      * @param {string || Buffer} signature - The signature in hex or Buffer format.
      * @param {string || Buffer} message - The message to verify in string or Buffer.
@@ -84,12 +126,12 @@ class Wallet {
      * @returns {boolean} True if the signature is valid, false otherwise.
      */
     verify(signature, message, publicKey) {
-        try{
+        try {
             const signatureBuffer = b4a.isBuffer(signature) ? signature : b4a.from(signature, 'hex');
             const messageBuffer = b4a.isBuffer(message) ? message : b4a.from(message);
             const publicKeyBuffer = b4a.isBuffer(publicKey) ? publicKey : b4a.from(publicKey, 'hex');
             return sodium.crypto_sign_verify_detached(signatureBuffer, messageBuffer, publicKeyBuffer);
-        } catch(e) { console.log(e) }
+        } catch (e) { console.log(e) }
         return false;
     }
 
@@ -108,16 +150,16 @@ class Wallet {
      * @returns {string} The hash in hex format.
     */
     // TODO: Refactor / improve security for this function
-    async createHash(type, message){
-        if(type === 'sha256'){
+    async createHash(type, message) {
+        if (type === 'sha256') {
             const out = b4a.alloc(sodium.crypto_hash_sha256_BYTES);
             sodium.crypto_hash_sha256(out, b4a.from(message));
             return out;
         }
 
-        if(global.Pear !== undefined){
+        if (global.Pear !== undefined) {
             let _type = '';
-            switch(type.toLowerCase()){
+            switch (type.toLowerCase()) {
                 case 'sha1': _type = 'SHA-1'; break;
                 case 'sha384': _type = 'SHA-384'; break;
                 case 'sha512': _type = 'SHA-512'; break;
@@ -383,7 +425,7 @@ class Wallet {
 
             const salt = b4a.from(data.salt, 'hex');
             const key = this.#deriveKey(encryptionKey, salt);
-            
+
             data = this.decrypt(data, key);
 
             // Cleanup sensitive data from memory
@@ -530,9 +572,9 @@ class PeerWallet extends Wallet {
     }
 
     async #setupKeypairInteractiveMode(readline_instance = null) {
-        if((global.Pear !== undefined && global.Pear.config.options.type === 'terminal') || global.Pear === undefined){
+        if ((global.Pear !== undefined && global.Pear.config.options.type === 'terminal') || global.Pear === undefined) {
             let rl;
-            if(readline_instance !== null){
+            if (readline_instance !== null) {
                 rl = readline_instance;
             } else {
                 rl = readline.createInterface({
@@ -552,15 +594,15 @@ class PeerWallet extends Wallet {
                 "[4]. Import keypair from file\n",
                 "Your choice(1/ 2/ 3/ 4/):"
             );
-            let choiceFunc = async function(input){
+            let choiceFunc = async function (input) {
                 choice = input;
             }
             rl.on('line', choiceFunc);
-            while('' === choice){
+            while ('' === choice) {
                 await this.sleep(1000);
             }
             rl.off('line', choiceFunc);
-            try{
+            try {
                 switch (choice) {
                     case '1':
                         response = {
@@ -571,11 +613,11 @@ class PeerWallet extends Wallet {
                     case '2':
                         console.log("Enter your mnemonic phrase:");
                         let mnemonicInput = '';
-                        let mnem = async function(input){
+                        let mnem = async function (input) {
                             mnemonicInput = input;
                         };
                         rl.on('line', mnem);
-                        while('' === mnemonicInput){
+                        while ('' === mnemonicInput) {
                             await this.sleep(1000);
                         }
                         rl.off('line', mnem);
@@ -586,22 +628,22 @@ class PeerWallet extends Wallet {
                         break;
                     case '3':
                         let publicKey = '';
-                        let pubkey = async function(input){
+                        let pubkey = async function (input) {
                             publicKey = input;
                         }
                         console.log("Enter your public key:");
                         rl.on('line', pubkey);
-                        while('' === publicKey){
+                        while ('' === publicKey) {
                             await this.sleep(1000);
                         }
                         rl.off('line', pubkey);
                         console.log("Enter your secret key:");
                         let secretKey = '';
-                        let seckey = async function(input){
+                        let seckey = async function (input) {
                             secretKey = input;
                         };
                         rl.on('line', seckey);
-                        while('' === secretKey){
+                        while ('' === secretKey) {
                             await this.sleep(1000);
                         }
                         rl.off('line', seckey);
@@ -616,11 +658,11 @@ class PeerWallet extends Wallet {
                     case '4':
                         console.log("Enter the path to the keypair file:");
                         let filePath = '';
-                        let fpath = async function(input){
+                        let fpath = async function (input) {
                             filePath = input;
                         };
                         rl.on('line', fpath);
-                        while('' === filePath){
+                        while ('' === filePath) {
                             await this.sleep(1000);
                         }
                         rl.off('line', fpath);
@@ -635,7 +677,7 @@ class PeerWallet extends Wallet {
                         choice = '';
                         return this.#setupKeypairInteractiveMode(readline_instance);
                 }
-            } catch(e) {
+            } catch (e) {
                 console.log("Invalid input. Please try again.");
                 response = null;
                 choice = '';
