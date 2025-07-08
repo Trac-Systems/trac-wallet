@@ -19,6 +19,7 @@
     "bare-fs": "^4.0.2",
     "bare-readline": "1.0.7",
     "bare-tty": "^5.0.2",
+    "bech32": "^2.0.0",
     "bip39-mnemonic": "^2.2.0",
     "fs": "npm:bare-node-fs",
     "readline": "npm:bare-node-readline",

@@ -5,13 +5,14 @@ import fs from 'fs';
 import readline from 'readline';
 import tty from 'tty'
 import b4a from 'b4a';
-import { RANDOM_BUFFER_SIZE, ENCRYPTION_KEY_BYTES } from './constants.js';
+import { bech32m } from 'bech32';
+import { RANDOM_BUFFER_SIZE, ENCRYPTION_KEY_BYTES, TRAC_NETWORK_MAINNET_PREFIX } from './constants.js';
 
 class Wallet {
     #keyPair;
     #isVerifyOnly;
     #address;
-    #tracNetworkMainnetPrefix = 0x01;
+    #networkPrefix;
 
     /**
      * Creates a new Wallet instance.
@@ -20,19 +21,19 @@ class Wallet {
      * @param {boolean} options.isVerifyOnly - A flag to indicate if the wallet will only be used for verifying signatures. If true, the key pair will not be generated.
      */
     constructor(options = {}) {
+        // TODO: Remove ' verifyOnly' mode and declare 'verify' method as static
         this.#isVerifyOnly = options.isVerifyOnly || false;
-
-        this.#keyPair = {
-            publicKey: null,
-            secretKey: null
-        };
+        this.#networkPrefix = options.networkPrefix || TRAC_NETWORK_MAINNET_PREFIX;
 
         if (options.mnemonic && !this.#isVerifyOnly) {
             this.generateKeyPair(options.mnemonic);
+        } else {
+            this.#keyPair = {
+                publicKey: null,
+                secretKey: null
+            };
+            this.#address = null;
         }
-
-        this.networkPrefix = options.networkPrefix || this.#tracNetworkMainnetPrefix;
-        this.#address = this.#setupTracAddress();
     }
 
     /**
@@ -79,6 +80,7 @@ class Wallet {
             throw new Error('Invalid key pair. Please provide a valid object with publicKey and secretKey');
         }
         this.#keyPair = this.sanitizeKeyPair(keyPair.publicKey, keyPair.secretKey);
+        this.#address = Wallet.encodeBech32m(this.#keyPair.publicKey, this.#networkPrefix);
     }
 
     /**
@@ -88,34 +90,54 @@ class Wallet {
      * @returns {Buffer|null} The TRAC address as a Buffer, or null if the public key is not set.
      */
     get address() {
-        if (!this.#keyPair.publicKey) {
+        if (!this.#keyPair.publicKey || !this.#address) {
             return null;
         }
-
-        if (!this.#address) {
-            this.#setupTracAddress();
-        }
-
         return this.#address;
     }
 
     /**
-     * Sets up the TRAC address for the wallet by concatenating the network prefix and the public key.
-     * The address is stored in the private #address property.
-     * If an error occurs (e.g., publicKey is not set), the address will be set to null.
+     * Initializes the wallet key pair and address from a mnemonic.
+     * This method generates the key pair using the provided mnemonic and sets the wallet's address
+     * by encoding the public key with the network prefix using bech32m encoding.
      * 
+     * @param {string} mnemonic - The mnemonic phrase to generate the key pair from.
+     * @returns {Promise<void>}
      * @private
      */
-    #setupTracAddress() {
-        const assembleAddress = () => {
-            try {
-                return b4a.concat([b4a.alloc(1, this.networkPrefix), this.publicKey]);
-            }
-            catch {
-                return null;
-            }
-        };
-        this.#address = assembleAddress();
+    async generateKeyPair(mnemonic) {
+        await this.#initKeyPair(mnemonic);
+        this.#address = Wallet.encodeBech32m(this.#keyPair.publicKey, this.#networkPrefix);
+    }
+
+    /**
+     * Encodes a 32-byte public key Buffer into a bech32m address string.
+     * @param {Buffer} pubKey - The buffer to encode (must be 32 bytes).
+     * @param {string} hrp - The human-readable part (HRP) for the address (prefix).
+     * @returns {string} The bech32m encoded address.
+     * @throws Will throw an error if the buffer is not a Buffer or not 32 bytes.
+     */
+    static encodeBech32m(pubKey, hrp = TRAC_NETWORK_MAINNET_PREFIX) {
+        if (!b4a.isBuffer(pubKey) || pubKey.length !== sodium.crypto_sign_PUBLICKEYBYTES) { // TODO. Maybe checking length is out of the scope of this function. Whoever calls this is responsible for ensuring data correct length
+            throw new Error(`Buffer must be ${sodium.crypto_sign_PUBLICKEYBYTES} bytes`);
+        }
+        const words = bech32m.toWords(pubKey);
+        return bech32m.encode(hrp, words);
+    }
+
+    /**
+     * Decodes a bech32m address string into a 32-byte public key Buffer.
+     * @param {string} address - The bech32m encoded address.
+     * @returns {Buffer} The decoded 32-byte public key buffer.
+     * @throws Will throw an error if the decoded buffer is not 32 bytes.
+     */
+    static decodeBech32m(address) {
+        const { words } = bech32m.decode(address);
+        const buffer = b4a.from(bech32m.fromWords(words));
+        if (buffer.length !== sodium.crypto_sign_PUBLICKEYBYTES) { // TODO: Maybe this is not in the scope of this function?
+            throw new Error(`Decoded buffer is invalid. Expected ${sodium.crypto_sign_PUBLICKEYBYTES} bytes, got ${buffer.length} bytes`);
+        }
+        return buffer;
     }
 
     /**
@@ -181,7 +203,7 @@ class Wallet {
      * @throws Will throw an error if the wallet is set to verify only.
      * @throws Will throw an error if the mnemonic is invalid.
      */
-    async generateKeyPair(mnemonic) {
+    async #initKeyPair(mnemonic) {
         if (this.#isVerifyOnly) {
             throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
         }
