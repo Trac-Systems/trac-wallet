@@ -3,7 +3,7 @@ import PeerWallet from './index.js';
 import * as fs from 'fs';
 import * as bip39 from 'bip39';
 import sodium from 'sodium-native';
-import {mnemonicToSeed} from 'bip39-mnemonic';
+import { mnemonicToSeed } from 'bip39-mnemonic';
 import b4a from 'b4a';
 import slip10 from 'micro-key-producer/slip10.js';
 
@@ -57,13 +57,14 @@ describe('Wallet', () => {
             expect(b4a.compare(walletLocal.publicKey, b4a.from('e848b77918a7e5d7b990b47751fb8e90256743cabbe2e15f016ae7cc621fe108', 'hex'))).to.equal(0);
         });
 
-        it('should throw an error for mnemonic containing less than 24 words',  async () => {
+        it('should throw an error for mnemonic containing less than 24 words', async () => {
             const faultyMnemonic = 'expire hobby crumble barely company behind solve kingdom plastic goddess congress sort awkward cancel ring quick gain wise doctor season fruit perfect';
             const walletLocal = new PeerWallet();
             let thrown = false;
-            try{
+            try {
+                // TODO: Update this test to use 'should.throw' syntax
                 await walletLocal.generateKeyPair(faultyMnemonic);
-            }catch(e){
+            } catch (e) {
                 thrown = true;
             }
             expect(thrown).to.equal(true);
@@ -73,9 +74,10 @@ describe('Wallet', () => {
             const faultyMnemonic = 'expire hobby crumble barely company behind solve kingdom plastic goddess congress sort awkward cancel ring quick gain wise doctor season fruit perfect fatal pool pool';
             const walletLocal = new PeerWallet();
             let thrown = false;
-            try{
+            try {
+                // TODO: Update this test to use 'should.throw' syntax
                 await walletLocal.generateKeyPair(faultyMnemonic);
-            }catch(e){
+            } catch (e) {
                 thrown = true;
             }
             expect(thrown).to.equal(true);
@@ -85,9 +87,10 @@ describe('Wallet', () => {
             const faultyMnemonic = 'expire hobby crumble barely company behind solve kingdom plastic goddess congress sort awkward cancel ring quick gain wise doctor season fruit perfect fatal invalid';
             const walletLocal = new PeerWallet();
             let thrown = false;
-            try{
+            try {
+                // TODO: Update this test to use 'should.throw' syntax
                 await walletLocal.generateKeyPair(faultyMnemonic);
-            }catch(e){
+            } catch (e) {
                 thrown = true;
             }
             expect(thrown).to.equal(true);
@@ -96,19 +99,16 @@ describe('Wallet', () => {
 
     describe('Key Pair Generation', () => {
         it('should generate a valid key pair and address', async () => {
-            const networkPrefix = 0x10;
-            const walletLocal = new PeerWallet({networkPrefix: networkPrefix});
+            const networkPrefix = 'test';
+            const walletLocal = new PeerWallet({ networkPrefix: networkPrefix });
             await walletLocal.generateKeyPair(validMnemonic);
 
             expect(b4a.isBuffer(walletLocal.publicKey)).to.be.true;
             expect(b4a.isBuffer(walletLocal.secretKey)).to.be.true;
-            expect(b4a.isBuffer(walletLocal.address)).to.be.true;
+            expect(typeof walletLocal.address).to.be.a('string');
             expect(walletLocal.publicKey).to.have.lengthOf(sodium.crypto_sign_PUBLICKEYBYTES);
             expect(walletLocal.secretKey).to.have.lengthOf(sodium.crypto_sign_SECRETKEYBYTES);
-            expect(walletLocal.address).to.have.lengthOf(1 + sodium.crypto_sign_PUBLICKEYBYTES);
-            expect(walletLocal.address[0]).to.equal(walletLocal.networkPrefix);
-            expect(walletLocal.networkPrefix).to.equal(networkPrefix);
-            expect(b4a.equals(walletLocal.publicKey, walletLocal.address.slice(1))).to.be.true;
+            expect(walletLocal.address.substring(0, networkPrefix.length + 1)).to.equal(networkPrefix + '1');
         });
 
         it('should not generate keys with empty input', () => {
@@ -139,7 +139,7 @@ describe('Wallet', () => {
             wallet2.keyPair = keyPair;
             expect(b4a.equals(wallet2.publicKey, wallet1.publicKey)).to.be.true;
             expect(b4a.equals(wallet2.secretKey, wallet1.secretKey)).to.be.true;
-            expect(b4a.equals(wallet2.address, wallet1.address)).to.be.true;
+            expect(wallet2.address === wallet1.address).to.be.true;
 
             const message = 'Hello, world!';
             const sig1 = wallet1.sign(message);
@@ -154,6 +154,27 @@ describe('Wallet', () => {
                 secretKey: null
             };
             expect(() => newWallet.keyPair = invalidKeyPair).to.throw('Invalid key pair. Please provide a valid object with publicKey and secretKey');
+        });
+    });
+
+    describe('Wallet bech32m encoding/decoding', () => {
+        it('should encode a 32-byte public key buffer to a bech32m string and decode it back', () => {
+            const publicKey = b4a.alloc(sodium.crypto_sign_PUBLICKEYBYTES);
+            sodium.randombytes_buf(publicKey);
+
+            const hrp = 'trac';
+            const encoded = PeerWallet.encodeBech32m(publicKey, hrp);
+            expect(encoded).to.be.a('string');
+            expect(encoded.startsWith(hrp + '1')).to.be.true;
+
+            const decoded = PeerWallet.decodeBech32m(encoded);
+            expect(b4a.isBuffer(decoded)).to.be.true;
+            expect(decoded.length).to.equal(sodium.crypto_sign_PUBLICKEYBYTES);
+            expect(decoded.equals(publicKey)).to.be.true;
+        });
+
+        it('should throw if encoding input is not a buffer', () => {
+            expect(() => PeerWallet.encodeBech32m('notabuffer', 'trac')).to.throw();
         });
     });
 
@@ -322,10 +343,10 @@ describe('Wallet', () => {
             expect(verifyOnlyWallet.publicKey).to.be.null;
             expect(() => verifyOnlyWallet.keyPair = keyPair).to.throw(errorMsg);
             let throws = false;
-            try{
-               await verifyOnlyWallet.generateKeyPair();
-            }catch(e)
-            {
+            try {
+                // TODO: Update this test to use 'should.throw' syntax
+                await verifyOnlyWallet.generateKeyPair();
+            } catch (e) {
                 throws = true;
             }
             expect(throws).to.equal(true);
@@ -356,6 +377,6 @@ describe('Nonce Generation', () => {
         const nonce1 = PeerWallet.generateNonce();
         const nonce2 = PeerWallet.generateNonce();
         expect(b4a.equals(nonce1, nonce2)).to.be.false;
-      });
+    });
 
 });
