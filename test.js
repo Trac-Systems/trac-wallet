@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import PeerWallet from './index.js';
 import * as fs from 'fs';
 import * as bip39 from 'bip39';
+import { bech32m } from 'bech32';
 import sodium from 'sodium-native';
 import { mnemonicToSeed } from 'bip39-mnemonic';
 import b4a from 'b4a';
@@ -173,9 +174,69 @@ describe('Wallet', () => {
             expect(decoded.equals(publicKey)).to.be.true;
         });
 
+        it('encoder should throw if input buffer has incorrect size', () => {
+            const wrongBuffer = b4a.alloc(16);
+            expect(() => PeerWallet.encodeBech32m(wrongBuffer, 'trac')).to.throw();
+        });
+
         it('should throw if encoding input is not a buffer', () => {
             expect(() => PeerWallet.encodeBech32m('notabuffer', 'trac')).to.throw();
         });
+
+        it('should throw for an invalid bech32m string', () => {
+            expect(() => PeerWallet.decodeBech32m('invalidbech32mstring')).to.throw();
+        });
+
+        it('should return null for a bech32m string that decodes to wrong length', () => {
+            const shortBuffer = b4a.alloc(16);
+            sodium.randombytes_buf(shortBuffer);
+            const hrp = 'trac';
+            const encoded = bech32m.encode(hrp, bech32m.toWords(shortBuffer));
+            expect(() => PeerWallet.decodeBech32m(encoded)).to.throw();
+        });
+    });
+
+    describe('Wallet bech32m safe encoding/decoding', () => {
+        it('should encode a 32-byte public key buffer to a bech32m string and decode it back', () => {
+            const publicKey = b4a.alloc(sodium.crypto_sign_PUBLICKEYBYTES);
+            sodium.randombytes_buf(publicKey);
+
+            const hrp = 'trac';
+            const encoded = PeerWallet.encodeBech32mSafe(publicKey, hrp);
+            expect(encoded).to.be.a('string');
+            expect(encoded.startsWith(hrp + '1')).to.be.true;
+
+            const decoded = PeerWallet.decodeBech32mSafe(encoded);
+            expect(b4a.isBuffer(decoded)).to.be.true;
+            expect(decoded.length).to.equal(sodium.crypto_sign_PUBLICKEYBYTES);
+            expect(decoded.equals(publicKey)).to.be.true;
+        });
+
+        it('encoder should return null if input buffer has incorrect size', () => {
+            const wrongBuffer = b4a.alloc(16);
+            const result = PeerWallet.encodeBech32mSafe(wrongBuffer, 'trac')
+            expect(result).to.be.null;
+        });
+
+        it('should return null encoding input is not a buffer', () => {
+            const result = PeerWallet.encodeBech32mSafe('notabuffer', 'trac')
+            expect(result).to.be.null;
+        });
+
+        it('should return null for an invalid bech32m string', () => {
+            const result = PeerWallet.decodeBech32mSafe('invalidbech32mstring')
+            expect(result).to.be.null;
+        });
+
+        it('should return null for a bech32m string that decodes to wrong length', () => {
+            const shortBuffer = b4a.alloc(16);
+            sodium.randombytes_buf(shortBuffer);
+            const hrp = 'trac';
+            const encoded = bech32m.encode(hrp, bech32m.toWords(shortBuffer));
+            const result = PeerWallet.decodeBech32mSafe(encoded)
+            expect(result).to.be.null;
+        });
+
     });
 
     describe('Message Signing and Verification', () => {

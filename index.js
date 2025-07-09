@@ -126,6 +126,21 @@ class Wallet {
     }
 
     /**
+     * Safely encodes a 32-byte public key Buffer into a bech32m address string.
+     * Returns null if the input is invalid.
+     * @param {Buffer} pubKey - The buffer to encode (must be 32 bytes).
+     * @param {string} hrp - The human-readable part (HRP) for the address (prefix).
+     * @returns {string|null} The bech32m encoded address, or null if input is invalid.
+     */
+    static encodeBech32mSafe(pubKey, hrp = TRAC_NETWORK_MAINNET_PREFIX) {
+        try {
+            return Wallet.encodeBech32m(pubKey, hrp);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    /**
      * Decodes a bech32m address string into a 32-byte public key Buffer.
      * @param {string} address - The bech32m encoded address.
      * @returns {Buffer} The decoded 32-byte public key buffer.
@@ -138,6 +153,20 @@ class Wallet {
             throw new Error(`Decoded buffer is invalid. Expected ${sodium.crypto_sign_PUBLICKEYBYTES} bytes, got ${buffer.length} bytes`);
         }
         return buffer;
+    }
+
+    /**
+     * Safely decodes a bech32m address string into a 32-byte public key Buffer.
+     * Returns null if the input is invalid or the decoded buffer is not 32 bytes.
+     * @param {string} address - The bech32m encoded address.
+     * @returns {Buffer|null} The decoded 32-byte public key buffer, or null if input is invalid.
+     */
+    static decodeBech32mSafe(address) {
+        try {
+            return Wallet.decodeBech32m(address);
+        } catch (e) {
+            return null;
+        }
     }
 
     /**
