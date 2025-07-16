@@ -6,11 +6,10 @@ import readline from 'readline';
 import tty from 'tty'
 import b4a from 'b4a';
 import { bech32m } from 'bech32';
-import { RANDOM_BUFFER_SIZE, ENCRYPTION_KEY_BYTES, TRAC_NETWORK_MAINNET_PREFIX } from './constants.js';
+import { RANDOM_BUFFER_SIZE, ENCRYPTION_KEY_BYTES, TRAC_NETWORK_MSB_MAINNET_PREFIX } from './constants.js';
 
 class Wallet {
     #keyPair;
-    #isVerifyOnly;
     #address;
     #networkPrefix;
 
@@ -18,14 +17,11 @@ class Wallet {
      * Creates a new Wallet instance.
      * @param {Object} options - An object containing the following properties:
      * @param {string} options.mnemonic - The mnemonic phrase to use for key generation.
-     * @param {boolean} options.isVerifyOnly - A flag to indicate if the wallet will only be used for verifying signatures. If true, the key pair will not be generated.
      */
     constructor(options = {}) {
-        // TODO: Remove ' verifyOnly' mode and declare 'verify' method as static
-        this.#isVerifyOnly = options.isVerifyOnly || false;
-        this.#networkPrefix = options.networkPrefix || TRAC_NETWORK_MAINNET_PREFIX;
+        this.#networkPrefix = options.networkPrefix || TRAC_NETWORK_MSB_MAINNET_PREFIX;
 
-        if (options.mnemonic && !this.#isVerifyOnly) {
+        if (options.mnemonic) {
             this.generateKeyPair(options.mnemonic);
         } else {
             this.#keyPair = {
@@ -59,23 +55,11 @@ class Wallet {
     }
 
     /**
-     * Returns the flag indicating if the wallet is set to verify only mode.
-     * @returns {boolean} True if the wallet is set to verify only, false otherwise.
-     */
-    get isVerifyOnly() {
-        return this.#isVerifyOnly;
-    }
-
-    /**
-     * Sets the key pair directly. If the wallet is set to verifyOnly mode, it will return to standard mode
+     * Sets the key pair directly.
      * @param {Object} keyPair - An object containing the publicKey and secretKey as hex strings.
-     * @throws Will throw an error if the wallet is set to verify only.
      * @throws Will throw an error if the key pair is invalid.
      */
     set keyPair(keyPair) {
-        if (this.#isVerifyOnly) {
-            throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
-        }
         if (!keyPair || !keyPair.publicKey || !keyPair.secretKey) {
             throw new Error('Invalid key pair. Please provide a valid object with publicKey and secretKey');
         }
@@ -117,7 +101,7 @@ class Wallet {
      * @returns {string} The bech32m encoded address.
      * @throws Will throw an error if the buffer is not a Buffer or not 32 bytes.
      */
-    static encodeBech32m(pubKey, hrp = TRAC_NETWORK_MAINNET_PREFIX) {
+    static encodeBech32m(pubKey, hrp = TRAC_NETWORK_MSB_MAINNET_PREFIX) {
         if (!b4a.isBuffer(pubKey) || pubKey.length !== sodium.crypto_sign_PUBLICKEYBYTES) { // TODO. Maybe checking length is out of the scope of this function. Whoever calls this is responsible for ensuring data correct length
             throw new Error(`Buffer must be ${sodium.crypto_sign_PUBLICKEYBYTES} bytes`);
         }
@@ -132,7 +116,7 @@ class Wallet {
      * @param {string} hrp - The human-readable part (HRP) for the address (prefix).
      * @returns {string|null} The bech32m encoded address, or null if input is invalid.
      */
-    static encodeBech32mSafe(pubKey, hrp = TRAC_NETWORK_MAINNET_PREFIX) {
+    static encodeBech32mSafe(pubKey, hrp = TRAC_NETWORK_MSB_MAINNET_PREFIX) {
         try {
             return Wallet.encodeBech32m(pubKey, hrp);
         } catch (e) {
@@ -176,7 +160,7 @@ class Wallet {
      * @param {string || Buffer} publicKey - The public key in hex or Buffer format.
      * @returns {boolean} True if the signature is valid, false otherwise.
      */
-    verify(signature, message, publicKey) {
+    static verify(signature, message, publicKey) {
         try {
             const signatureBuffer = b4a.isBuffer(signature) ? signature : b4a.from(signature, 'hex');
             const messageBuffer = b4a.isBuffer(message) ? message : b4a.from(message);
@@ -184,6 +168,13 @@ class Wallet {
             return sodium.crypto_sign_verify_detached(signatureBuffer, messageBuffer, publicKeyBuffer);
         } catch (e) { console.log(e) }
         return false;
+    }
+
+    /**
+     * Instance method for signature verification.
+     */
+    verify(signature, message, publicKey) {
+        return Wallet.verify(signature, message, publicKey);
     }
 
     /**
@@ -227,16 +218,11 @@ class Wallet {
     }
 
     /**
-     * Generates a key pair from a mnemonic phrase. If the wallet is set to verifyOnly mode, it will return to standard mode
+     * Generates a key pair from a mnemonic phrase.
      * @param {string} mnemonic - The mnemonic phrase.
-     * @throws Will throw an error if the wallet is set to verify only.
      * @throws Will throw an error if the mnemonic is invalid.
      */
     async #initKeyPair(mnemonic) {
-        if (this.#isVerifyOnly) {
-            throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
-        }
-
         // TODO: Include a warning stating that the previous keys will be deleted if a new mnemonic is provided
         let safeMnemonic = this.sanitizeMnemonic(mnemonic);
 
@@ -263,14 +249,9 @@ class Wallet {
      * @param {string} message - The message to sign.
      * @param {Buffer} privateKey - The private key to use for signing. If not provided, the stored secret key will be used.
      * @returns {string} The signature in hex format.
-     * @throws Will throw an error if the wallet is set to verify only.
      * @throws Will throw an error if the secret key is not set.
      */
     sign(message, privateKey = null) {
-        if (this.#isVerifyOnly) {
-            throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
-        }
-
         if (!this.#keyPair.secretKey && !privateKey) {
             throw new Error('No key pair found. Please, generate a key pair first');
         }
@@ -449,16 +430,11 @@ class Wallet {
     }
 
     /**
-     * Imports a key pair from a JSON file. If the wallet is set to verifyOnly mode, it will return to standard mode
+     * Imports a key pair from a JSON file.
      * @param {string} filePath - The path to the file where the keys are saved.
      * @param {Buffer|null} [encryptionKey=""] - The encryption key to use for decrypting the file. If not provided, the function assumes the file is not encrypted.
-     * @throws Will throw an error if the wallet is set to verify only.
      */
     importFromFile(filePath, encryptionKey = null) { // TODO: In the future, the key parameter should not be optional!
-        if (this.#isVerifyOnly) {
-            throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
-        }
-
         let data;
         try {
             if (!fs.existsSync(filePath)) {
@@ -484,7 +460,6 @@ class Wallet {
             sodium.sodium_memzero(salt);
         }
         this.#keyPair = this.sanitizeKeyPair(data.publicKey, data.secretKey);
-        this.#isVerifyOnly = false;
     }
 
     /**
@@ -569,19 +544,13 @@ class Wallet {
 }
 
 class PeerWallet extends Wallet {
-    #isVerifyOnly;
     #readlineInstance = null;
 
     constructor(options = {}) {
         super(options);
-        this.#isVerifyOnly = options.isVerifyOnly || false;
     }
 
     async initKeyPair(filePath, readline_instance = null) {
-        if (this.#isVerifyOnly) {
-            throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
-        }
-
         if (!filePath) {
             throw new Error("File path is required");
         }

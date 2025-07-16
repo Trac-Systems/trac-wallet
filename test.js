@@ -245,7 +245,7 @@ describe('Wallet', () => {
             const wallet1 = new PeerWallet();
             await wallet1.generateKeyPair(validMnemonic);
             const signature = wallet1.sign(message);
-            const isValid = wallet1.verify(signature, message, wallet1.publicKey);
+            const isValid = PeerWallet.verify(signature, message, wallet1.publicKey);
             expect(isValid).to.be.true;
         });
 
@@ -386,43 +386,6 @@ describe('Wallet', () => {
         it('should not export keypair when no keys are set', () => {
             const emptyWallet = new PeerWallet();
             expect(() => emptyWallet.exportToFile('./wallet.json')).to.throw('No key pair found');
-        });
-    });
-
-    describe('Verify Only Mode', () => {
-
-        it('should not generate key pair when isVerifyOnly is true', async () => {
-            const errorMsg = 'This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair'
-            const message = 'Hello, world!';
-            const verifyOnlyWallet = new PeerWallet({ isVerifyOnly: true });
-            const keyPair = {
-                publicKey: "82444d4f8f042ec06bbfba4f0b01043a5fdb03e8a8481d740b964563c0f91868",
-                secretKey: "38ff0b5c840266901050964857c54b9f92836bc60383277a788084192ea5a2dc82444d4f8f042ec06bbfba4f0b01043a5fdb03e8a8481d740b964563c0f91868"
-            };
-
-            expect(verifyOnlyWallet.isVerifyOnly).to.be.true;
-            expect(verifyOnlyWallet.publicKey).to.be.null;
-            expect(() => verifyOnlyWallet.keyPair = keyPair).to.throw(errorMsg);
-            let throws = false;
-            try {
-                // TODO: Update this test to use 'should.throw' syntax
-                await verifyOnlyWallet.generateKeyPair();
-            } catch (e) {
-                throws = true;
-            }
-            expect(throws).to.equal(true);
-            expect(() => verifyOnlyWallet.sign(message)).to.throw(errorMsg);
-            expect(() => verifyOnlyWallet.exportToFile('./wallet.json')).to.throw('No key pair found');
-        });
-
-        it('should verify a message signature when isVerifyOnly is true', async () => {
-            const message = 'Hello, world!';
-            const wallet1 = new PeerWallet();
-            await wallet1.generateKeyPair(validMnemonic);
-            const signature = wallet1.sign(message);
-            const verifyOnlyWallet = new PeerWallet({ isVerifyOnly: true });
-            const isValid = verifyOnlyWallet.verify(signature, message, wallet1.publicKey);
-            expect(isValid).to.be.true;
         });
     });
 });
