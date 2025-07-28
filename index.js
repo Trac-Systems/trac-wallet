@@ -602,9 +602,7 @@ class PeerWallet extends Wallet {
                     output: new tty.WriteStream(1)
                 });
             }
-            if (this.#readlineInstance != null) {
-                await this.#readlineInstance.close();
-            }
+
             this.#readlineInstance = rl;
             let response;
             let choice = '';
@@ -702,9 +700,6 @@ class PeerWallet extends Wallet {
                 response = null;
                 choice = '';
                 return this.#setupKeypairInteractiveMode(readline_instance);
-            }
-            if (this.#readlineInstance !== null) {
-                await this.#readlineInstance.close();
             }
             return response;
         }
