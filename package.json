@@ -29,6 +29,7 @@
   "devDependencies": {
     "bip39": "^3.1.0",
     "chai": "^5.2.0",
+    "chai-as-promised": "^8.0.1",
     "micro-key-producer": "^0.7.5",
     "mocha": "^11.1.0"
   },
