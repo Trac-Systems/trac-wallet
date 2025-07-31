@@ -1,7 +1,7 @@
 /** @typedef {import('pear-interface')} */
 import { generateMnemonic, validateMnemonic, mnemonicToSeed } from 'bip39-mnemonic';
 import sodium from 'sodium-native';
-import fs from 'fs';
+import { fs, fsReady } from './fs-provider.js';
 import readline from 'readline';
 import tty from 'tty'
 import b4a from 'b4a';
@@ -371,7 +371,7 @@ class Wallet {
      * @param {Buffer|null} [encryptionKey=""] - The encryption key to use for encrypting the file. If not provided, the file will not be encrypted.
      * @throws Will throw an error if the key pair is not set.
      */
-    exportToFile(filePath, mnemonic = null, encryptionKey = null) { // TODO: In the future, the encryptionKey parameter should not be optional!
+    async exportToFile(filePath, mnemonic = null, encryptionKey = null) { // TODO: In the future, the encryptionKey parameter should not be optional!
         if (!this.#keyPair.secretKey) {
             throw new Error('No key pair found');
         }
@@ -415,6 +415,7 @@ class Wallet {
         }
 
         try {
+            await fsReady;
             fs.writeFileSync(filePath, fileData);
             console.log('Key pair exported to', filePath);
         } catch (err) {
@@ -434,9 +435,10 @@ class Wallet {
      * @param {string} filePath - The path to the file where the keys are saved.
      * @param {Buffer|null} [encryptionKey=""] - The encryption key to use for decrypting the file. If not provided, the function assumes the file is not encrypted.
      */
-    importFromFile(filePath, encryptionKey = null) { // TODO: In the future, the key parameter should not be optional!
+    async importFromFile(filePath, encryptionKey = null) { // TODO: In the future, the key parameter should not be optional!
         let data;
         try {
+            await fsReady;
             if (!fs.existsSync(filePath)) {
                 throw new Error(`File ${filePath} not found`);
             }
@@ -554,8 +556,8 @@ class PeerWallet extends Wallet {
         if (!filePath) {
             throw new Error("File path is required");
         }
-
         try {
+            await fsReady;
             if (fs.existsSync(filePath)) {
                 const keyPair = JSON.parse(fs.readFileSync(filePath));
                 this.keyPair = {
@@ -576,11 +578,11 @@ class PeerWallet extends Wallet {
                             console.log("This is your mnemonic:\n", mnemonic, "\nPlease back it up in a safe location")
                         }
                         await this.generateKeyPair(mnemonic);
-                        this.exportToFile(filePath, mnemonic);
+                        await this.exportToFile(filePath, mnemonic);
                         console.log("DEBUG: Key pair generated and stored in", filePath);
                         break;
                     case 'import':
-                        this.importFromFile(response.value);
+                        await this.importFromFile(response.value);
                         break;
                     default:
                         console.error("Invalid response type from keypair setup interactive menu");

@@ -1,12 +1,16 @@
-import { expect } from 'chai';
 import PeerWallet from './index.js';
-import * as fs from 'fs';
 import * as bip39 from 'bip39';
 import { bech32m } from 'bech32';
 import sodium from 'sodium-native';
 import { mnemonicToSeed } from 'bip39-mnemonic';
 import b4a from 'b4a';
 import slip10 from 'micro-key-producer/slip10.js';
+import * as chai from 'chai';
+import * as chaiAsPromised from 'chai-as-promised';
+import { fs } from './fs-provider.js';
+
+const expect = chai.expect;
+chai.use(chaiAsPromised.default || chaiAsPromised);
 
 describe('Wallet', () => {
     let wallet;
@@ -323,7 +327,7 @@ describe('Wallet', () => {
             const filePath = './wallet.json';
             const wallet1 = new PeerWallet();
             await wallet1.generateKeyPair(validMnemonic);
-            wallet1.exportToFile(filePath, validMnemonic);
+            await wallet1.exportToFile(filePath, validMnemonic);
             const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
             expect(data.salt).to.be.undefined;
             expect(data.nonce).to.be.undefined;
@@ -339,9 +343,9 @@ describe('Wallet', () => {
             const filePath = './wallet.json';
             const wallet1 = new PeerWallet();
             await wallet1.generateKeyPair(validMnemonic);
-            wallet1.exportToFile(filePath);
+            await wallet1.exportToFile(filePath);
             const newWallet = new PeerWallet();
-            newWallet.importFromFile(filePath);
+            await newWallet.importFromFile(filePath);
             expect(newWallet.publicKey.toString()).to.equal(wallet1.publicKey.toString());
 
             const message = 'Hello, world!';
@@ -360,7 +364,7 @@ describe('Wallet', () => {
             await wallet1.generateKeyPair(validMnemonic);
 
             // Test exporting with encryption
-            wallet1.exportToFile(filePath, null, encryptionKey);
+            await wallet1.exportToFile(filePath, null, encryptionKey);
             const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
             expect(data.nonce).to.not.be.undefined;
             expect(data.ciphertext).to.not.be.undefined;
@@ -371,7 +375,7 @@ describe('Wallet', () => {
 
             // Test importing with decryption
             const wallet2 = new PeerWallet();
-            wallet2.importFromFile(filePath, encryptionKey);
+            await wallet2.importFromFile(filePath, encryptionKey);
             expect(b4a.compare(wallet2.publicKey, wallet1.publicKey)).to.equal(0);
 
             // Test signing and verifying a message
@@ -383,9 +387,9 @@ describe('Wallet', () => {
             fs.unlinkSync(filePath); // Clean up the file after test
         });
 
-        it('should not export keypair when no keys are set', () => {
+        it('should not export keypair when no keys are set', async () => {
             const emptyWallet = new PeerWallet();
-            expect(() => emptyWallet.exportToFile('./wallet.json')).to.throw('No key pair found');
+            await expect(emptyWallet.exportToFile('./wallet.json')).to.be.rejectedWith('No key pair found');
         });
     });
 });
