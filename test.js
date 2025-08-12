@@ -1,4 +1,4 @@
-import PeerWallet from './index.js';
+import Wallet from './index.js';
 import * as bip39 from 'bip39';
 import { bech32m } from 'bech32';
 import sodium from 'sodium-native';
@@ -17,14 +17,14 @@ describe('Wallet', () => {
     const validMnemonic = 'expire hobby crumble barely company behind solve kingdom plastic goddess congress sort awkward cancel ring quick gain wise doctor season fruit perfect fatal pool';
 
     beforeEach(() => {
-        wallet = new PeerWallet();
+        wallet = new Wallet();
         wallet.generateKeyPair(validMnemonic);
     });
 
     describe('HD Wallet Support', () => {
-        it('should create a valid HD wallet from micro-key-producer based on peer wallet mnemonic, then HD wallet signs a message and is verified by both HD and PeerWallet.', async () => {
+        it('should create a valid HD wallet from micro-key-producer based on peer wallet mnemonic, then HD wallet signs a message and is verified by both HD and Wallet.', async () => {
             const mnemonic = wallet.generateMnemonic();
-            const walletLocal = new PeerWallet();
+            const walletLocal = new Wallet();
             await walletLocal.generateKeyPair(mnemonic);
             const seed = await mnemonicToSeed(mnemonic);
             const seed32 = await walletLocal.createHash('sha256', seed);
@@ -57,14 +57,14 @@ describe('Wallet', () => {
         });
 
         it('should accept a valid mnemonic input', async () => {
-            const walletLocal = new PeerWallet();
+            const walletLocal = new Wallet();
             await walletLocal.generateKeyPair(validMnemonic);
             expect(b4a.compare(walletLocal.publicKey, b4a.from('e848b77918a7e5d7b990b47751fb8e90256743cabbe2e15f016ae7cc621fe108', 'hex'))).to.equal(0);
         });
 
         it('should throw an error for mnemonic containing less than 24 words', async () => {
             const faultyMnemonic = 'expire hobby crumble barely company behind solve kingdom plastic goddess congress sort awkward cancel ring quick gain wise doctor season fruit perfect';
-            const walletLocal = new PeerWallet();
+            const walletLocal = new Wallet();
             let thrown = false;
             try {
                 // TODO: Update this test to use 'should.throw' syntax
@@ -77,7 +77,7 @@ describe('Wallet', () => {
 
         it('should throw an error for mnemonic containing more than 24 words', async () => {
             const faultyMnemonic = 'expire hobby crumble barely company behind solve kingdom plastic goddess congress sort awkward cancel ring quick gain wise doctor season fruit perfect fatal pool pool';
-            const walletLocal = new PeerWallet();
+            const walletLocal = new Wallet();
             let thrown = false;
             try {
                 // TODO: Update this test to use 'should.throw' syntax
@@ -90,7 +90,7 @@ describe('Wallet', () => {
 
         it('should throw an error for mnemonic containing invalid word', async () => {
             const faultyMnemonic = 'expire hobby crumble barely company behind solve kingdom plastic goddess congress sort awkward cancel ring quick gain wise doctor season fruit perfect fatal invalid';
-            const walletLocal = new PeerWallet();
+            const walletLocal = new Wallet();
             let thrown = false;
             try {
                 // TODO: Update this test to use 'should.throw' syntax
@@ -105,7 +105,7 @@ describe('Wallet', () => {
     describe('Key Pair Generation', () => {
         it('should generate a valid key pair and address', async () => {
             const networkPrefix = 'test';
-            const walletLocal = new PeerWallet({ networkPrefix: networkPrefix });
+            const walletLocal = new Wallet({ networkPrefix: networkPrefix });
             await walletLocal.generateKeyPair(validMnemonic);
 
             expect(b4a.isBuffer(walletLocal.publicKey)).to.be.true;
@@ -117,7 +117,7 @@ describe('Wallet', () => {
         });
 
         it('should not generate keys with empty input', () => {
-            const emptyWallet = new PeerWallet();
+            const emptyWallet = new Wallet();
             expect(emptyWallet.publicKey).to.be.null;
             expect(emptyWallet.secretKey).to.be.null;
             expect(emptyWallet.address).to.be.null;
@@ -127,16 +127,16 @@ describe('Wallet', () => {
             const options = {
                 mnemonic: null
             };
-            const emptyWallet = new PeerWallet(options);
+            const emptyWallet = new Wallet(options);
             expect(emptyWallet.publicKey).to.be.null;
             expect(emptyWallet.secretKey).to.be.null;
             expect(emptyWallet.address).to.be.null;
         });
 
         it('should set a valid key pair', async () => {
-            const wallet1 = new PeerWallet();
+            const wallet1 = new Wallet();
             await wallet1.generateKeyPair(validMnemonic);
-            const wallet2 = new PeerWallet();
+            const wallet2 = new Wallet();
             const keyPair = {
                 publicKey: "e848b77918a7e5d7b990b47751fb8e90256743cabbe2e15f016ae7cc621fe108",
                 secretKey: "2f1f7961ea38fbf7735eebb7d2faddaa7cea5fef637e60665f976907f4f29d55e848b77918a7e5d7b990b47751fb8e90256743cabbe2e15f016ae7cc621fe108"
@@ -153,7 +153,7 @@ describe('Wallet', () => {
         });
 
         it('should throw an error for invalid key pair', () => {
-            const newWallet = new PeerWallet();
+            const newWallet = new Wallet();
             const invalidKeyPair = {
                 publicKey: wallet.publicKey,
                 secretKey: null
@@ -168,11 +168,11 @@ describe('Wallet', () => {
             sodium.randombytes_buf(publicKey);
 
             const hrp = 'trac';
-            const encoded = PeerWallet.encodeBech32m(publicKey, hrp);
+            const encoded = Wallet.encodeBech32m(publicKey, hrp);
             expect(encoded).to.be.a('string');
             expect(encoded.startsWith(hrp + '1')).to.be.true;
 
-            const decoded = PeerWallet.decodeBech32m(encoded);
+            const decoded = Wallet.decodeBech32m(encoded);
             expect(b4a.isBuffer(decoded)).to.be.true;
             expect(decoded.length).to.equal(sodium.crypto_sign_PUBLICKEYBYTES);
             expect(decoded.equals(publicKey)).to.be.true;
@@ -180,15 +180,15 @@ describe('Wallet', () => {
 
         it('encoder should throw if input buffer has incorrect size', () => {
             const wrongBuffer = b4a.alloc(16);
-            expect(() => PeerWallet.encodeBech32m(wrongBuffer, 'trac')).to.throw();
+            expect(() => Wallet.encodeBech32m(wrongBuffer, 'trac')).to.throw();
         });
 
         it('should throw if encoding input is not a buffer', () => {
-            expect(() => PeerWallet.encodeBech32m('notabuffer', 'trac')).to.throw();
+            expect(() => Wallet.encodeBech32m('notabuffer', 'trac')).to.throw();
         });
 
         it('should throw for an invalid bech32m string', () => {
-            expect(() => PeerWallet.decodeBech32m('invalidbech32mstring')).to.throw();
+            expect(() => Wallet.decodeBech32m('invalidbech32mstring')).to.throw();
         });
 
         it('should return null for a bech32m string that decodes to wrong length', () => {
@@ -196,7 +196,7 @@ describe('Wallet', () => {
             sodium.randombytes_buf(shortBuffer);
             const hrp = 'trac';
             const encoded = bech32m.encode(hrp, bech32m.toWords(shortBuffer));
-            expect(() => PeerWallet.decodeBech32m(encoded)).to.throw();
+            expect(() => Wallet.decodeBech32m(encoded)).to.throw();
         });
     });
 
@@ -206,11 +206,11 @@ describe('Wallet', () => {
             sodium.randombytes_buf(publicKey);
 
             const hrp = 'trac';
-            const encoded = PeerWallet.encodeBech32mSafe(publicKey, hrp);
+            const encoded = Wallet.encodeBech32mSafe(publicKey, hrp);
             expect(encoded).to.be.a('string');
             expect(encoded.startsWith(hrp + '1')).to.be.true;
 
-            const decoded = PeerWallet.decodeBech32mSafe(encoded);
+            const decoded = Wallet.decodeBech32mSafe(encoded);
             expect(b4a.isBuffer(decoded)).to.be.true;
             expect(decoded.length).to.equal(sodium.crypto_sign_PUBLICKEYBYTES);
             expect(decoded.equals(publicKey)).to.be.true;
@@ -218,17 +218,17 @@ describe('Wallet', () => {
 
         it('encoder should return null if input buffer has incorrect size', () => {
             const wrongBuffer = b4a.alloc(16);
-            const result = PeerWallet.encodeBech32mSafe(wrongBuffer, 'trac')
+            const result = Wallet.encodeBech32mSafe(wrongBuffer, 'trac')
             expect(result).to.be.null;
         });
 
         it('should return null encoding input is not a buffer', () => {
-            const result = PeerWallet.encodeBech32mSafe('notabuffer', 'trac')
+            const result = Wallet.encodeBech32mSafe('notabuffer', 'trac')
             expect(result).to.be.null;
         });
 
         it('should return null for an invalid bech32m string', () => {
-            const result = PeerWallet.decodeBech32mSafe('invalidbech32mstring')
+            const result = Wallet.decodeBech32mSafe('invalidbech32mstring')
             expect(result).to.be.null;
         });
 
@@ -237,7 +237,7 @@ describe('Wallet', () => {
             sodium.randombytes_buf(shortBuffer);
             const hrp = 'trac';
             const encoded = bech32m.encode(hrp, bech32m.toWords(shortBuffer));
-            const result = PeerWallet.decodeBech32mSafe(encoded)
+            const result = Wallet.decodeBech32mSafe(encoded)
             expect(result).to.be.null;
         });
 
@@ -246,10 +246,10 @@ describe('Wallet', () => {
     describe('Message Signing and Verification', () => {
         it('should sign and verify a message signature', async () => {
             const message = 'Hello, world!';
-            const wallet1 = new PeerWallet();
+            const wallet1 = new Wallet();
             await wallet1.generateKeyPair(validMnemonic);
             const signature = wallet1.sign(message);
-            const isValid = PeerWallet.verify(signature, message, wallet1.publicKey);
+            const isValid = Wallet.verify(signature, message, wallet1.publicKey);
             expect(isValid).to.be.true;
         });
 
@@ -276,8 +276,8 @@ describe('Wallet', () => {
         });
 
         it('should verify a signature even with empty key pair', async () => {
-            const emptyWallet = new PeerWallet();
-            const wallet1 = new PeerWallet();
+            const emptyWallet = new Wallet();
+            const wallet1 = new Wallet();
             await wallet1.generateKeyPair(validMnemonic);
             const message = 'Hello, world!';
             const signature = wallet1.sign(message);
@@ -286,7 +286,7 @@ describe('Wallet', () => {
         });
 
         it('should not sign message when no keys are set', () => {
-            const emptyWallet = new PeerWallet();
+            const emptyWallet = new Wallet();
             expect(() => emptyWallet.sign('Hello, world!')).to.throw('No key pair found. Please, generate a key pair first');
         });
     });
@@ -325,7 +325,7 @@ describe('Wallet', () => {
         // TODO: In the future, this test will need to change, as it will NOT be possible to export a non-encrypted file anymore
         it('should export keys to a file - no encryption', async () => {
             const filePath = './wallet.json';
-            const wallet1 = new PeerWallet();
+            const wallet1 = new Wallet();
             await wallet1.generateKeyPair(validMnemonic);
             await wallet1.exportToFile(filePath, validMnemonic);
             const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -341,10 +341,10 @@ describe('Wallet', () => {
         // TODO: In the future, this test will need to change, as it will NOT be possible to import a non-encrypted file anymore
         it('should be able to import keys from a file - no encryption', async () => {
             const filePath = './wallet.json';
-            const wallet1 = new PeerWallet();
+            const wallet1 = new Wallet();
             await wallet1.generateKeyPair(validMnemonic);
             await wallet1.exportToFile(filePath);
-            const newWallet = new PeerWallet();
+            const newWallet = new Wallet();
             await newWallet.importFromFile(filePath);
             expect(newWallet.publicKey.toString()).to.equal(wallet1.publicKey.toString());
 
@@ -360,7 +360,7 @@ describe('Wallet', () => {
             const filePath = './wallet.json';
             const encryptionKey = b4a.alloc(32).fill('someEncryptionKey');
 
-            const wallet1 = new PeerWallet();
+            const wallet1 = new Wallet();
             await wallet1.generateKeyPair(validMnemonic);
 
             // Test exporting with encryption
@@ -374,7 +374,7 @@ describe('Wallet', () => {
             expect(data.mnemonic).to.be.undefined;
 
             // Test importing with decryption
-            const wallet2 = new PeerWallet();
+            const wallet2 = new Wallet();
             await wallet2.importFromFile(filePath, encryptionKey);
             expect(b4a.compare(wallet2.publicKey, wallet1.publicKey)).to.equal(0);
 
@@ -388,7 +388,7 @@ describe('Wallet', () => {
         });
 
         it('should not export keypair when no keys are set', async () => {
-            const emptyWallet = new PeerWallet();
+            const emptyWallet = new Wallet();
             await expect(emptyWallet.exportToFile('./wallet.json')).to.be.rejectedWith('No key pair found');
         });
     });
@@ -396,14 +396,14 @@ describe('Wallet', () => {
 
 describe('Nonce Generation', () => {
     it('should return a buffer of 32 bytes', () => {
-        const nonce = PeerWallet.generateNonce();
+        const nonce = Wallet.generateNonce();
         expect(b4a.isBuffer(nonce)).to.be.true;
         expect(nonce.length).to.equal(32);
     });
 
     it('should return a different nonce each time', () => {
-        const nonce1 = PeerWallet.generateNonce();
-        const nonce2 = PeerWallet.generateNonce();
+        const nonce1 = Wallet.generateNonce();
+        const nonce2 = Wallet.generateNonce();
         expect(b4a.equals(nonce1, nonce2)).to.be.false;
     });
 
