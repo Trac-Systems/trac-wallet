@@ -1,12 +1,12 @@
 /** @typedef {import('pear-interface')} */
 import { generateMnemonic, validateMnemonic, mnemonicToSeed } from 'bip39-mnemonic';
-import sodium from 'sodium-native';
 import { fs, fsReady } from './fs-provider.js';
 import readline from 'readline';
 import tty from 'tty'
 import b4a from 'b4a';
 import { bech32m } from 'bech32';
 import { RANDOM_BUFFER_SIZE, ENCRYPTION_KEY_BYTES, TRAC_NETWORK_MSB_MAINNET_PREFIX } from './constants.js';
+import { hash } from './crypto'
 
 class Wallet {
     #keyPair;
@@ -193,28 +193,7 @@ class Wallet {
     */
     // TODO: Refactor / improve security for this function
     async createHash(type, message) {
-        if (type === 'sha256') {
-            const out = b4a.alloc(sodium.crypto_hash_sha256_BYTES);
-            sodium.crypto_hash_sha256(out, b4a.from(message));
-            return out;
-        }
-
-        if (global.Pear !== undefined) {
-            let _type = '';
-            switch (type.toLowerCase()) {
-                case 'sha1': _type = 'SHA-1'; break;
-                case 'sha384': _type = 'SHA-384'; break;
-                case 'sha512': _type = 'SHA-512'; break;
-                default: throw new Error('Unsupported algorithm.');
-            }
-            const encoder = new TextEncoder();
-            const data = encoder.encode(message);
-            const hash = await crypto.subtle.digest(_type, data);
-            const hashArray = b4a.from(new Uint8Array(hash));
-            return hashArray;
-        } else {
-            return b4a.from(crypto.createHash(type).update(message).digest('hex'), 'hex'); // TODO: Implement tests for this part of the code
-        }
+        return await hash(message, type)
     }
 
     /**
@@ -236,7 +215,7 @@ class Wallet {
         const publicKey = b4a.alloc(sodium.crypto_sign_PUBLICKEYBYTES);
         const secretKey = b4a.alloc(sodium.crypto_sign_SECRETKEYBYTES);
 
-        const seed32 = b4a.from(await this.createHash('sha256', seed), 'hex');
+        const seed32 = await hash(seed);
 
         sodium.crypto_sign_seed_keypair(publicKey, secretKey, seed32);
 
