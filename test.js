@@ -59,7 +59,7 @@ describe('Wallet', () => {
         it('should accept a valid mnemonic input', async () => {
             const walletLocal = new PeerWallet();
             await walletLocal.generateKeyPair(validMnemonic);
-            expect(b4a.compare(walletLocal.publicKey, b4a.from('e848b77918a7e5d7b990b47751fb8e90256743cabbe2e15f016ae7cc621fe108', 'hex'))).to.equal(0);
+            expect(b4a.compare(walletLocal.publicKey, b4a.from('e7721fd6f77033521c3d89af96896db31f29579d33279f318bcdea4faa116aed', 'hex'))).to.equal(0);
         });
 
         it('should throw an error for mnemonic containing less than 24 words', async () => {
@@ -138,13 +138,13 @@ describe('Wallet', () => {
             await wallet1.generateKeyPair(validMnemonic);
             const wallet2 = new PeerWallet();
             const keyPair = {
-                publicKey: "e848b77918a7e5d7b990b47751fb8e90256743cabbe2e15f016ae7cc621fe108",
-                secretKey: "2f1f7961ea38fbf7735eebb7d2faddaa7cea5fef637e60665f976907f4f29d55e848b77918a7e5d7b990b47751fb8e90256743cabbe2e15f016ae7cc621fe108"
+                publicKey: "e7721fd6f77033521c3d89af96896db31f29579d33279f318bcdea4faa116aed",
+                secretKey: "3b2383e03245c0b16cf223bbe80b5ce275557b15ce6b9754c60006a2eb04a169e7721fd6f77033521c3d89af96896db31f29579d33279f318bcdea4faa116aed"
             };
             wallet2.keyPair = keyPair;
             expect(b4a.equals(wallet2.publicKey, wallet1.publicKey)).to.be.true;
             expect(b4a.equals(wallet2.secretKey, wallet1.secretKey)).to.be.true;
-            expect(wallet2.address === wallet1.address).to.be.true;
+            expect(wallet2.address).to.be.eq(wallet1.address);
 
             const message = 'Hello, world!';
             const sig1 = wallet1.sign(message);

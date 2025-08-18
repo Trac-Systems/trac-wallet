@@ -6,7 +6,8 @@ import tty from 'tty'
 import b4a from 'b4a';
 import { bech32m } from 'bech32';
 import { RANDOM_BUFFER_SIZE, ENCRYPTION_KEY_BYTES, TRAC_NETWORK_MSB_MAINNET_PREFIX } from './constants.js';
-import { hash } from './crypto'
+import { hash } from './crypto.js'
+import sodium from 'sodium-native'
 
 class Wallet {
     #keyPair;

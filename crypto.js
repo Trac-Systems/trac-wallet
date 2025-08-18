@@ -10,7 +10,7 @@ const TYPE_MAPS = {
 
 const toSubtleType = type => {
   if (Object.keys(TYPE_MAPS).includes(type?.toLowerCase()))
-    return type.toLowerCase()[type?.toLowerCase()]
+    return TYPE_MAPS[type?.toLowerCase()]
 
   throw new Error('Unsupported algorithm.')  
 }
@@ -32,7 +32,7 @@ export const hash = async (message, type = 'blake3') => {
   if (type === 'sha256') {
     return sha256(message)
   } else if (type === 'blake3') {
-    return defaultHash(message)
+    return await defaultHash(message)
   }
 
   if (global.Pear !== undefined) {
