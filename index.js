@@ -10,6 +10,7 @@ import tracCryptoApi from 'trac-crypto-api';
 class Wallet {
     #networkPrefix;
     #keyPair;
+    ready;
 
     /**
      * Creates a new Wallet instance.
@@ -17,9 +18,13 @@ class Wallet {
      * @param {string} [options.mnemonic] - Optional mnemonic phrase for key generation.
      * @param {string} [options.networkPrefix] - Optional network prefix for address encoding.
      */
+    // Disclaimer: Please note that the function #initKeyPair is async. This means that the keypair is not set
+    // until the function finishes executing. For most cases, this will be irrelevant, but it can lead to errors
+    // if you try to access the keypair properties before the function has completed.
+    // Always use await Wallet.ready before trying to access the keypair.
     constructor(options = {}) {
         this.#networkPrefix = options.networkPrefix || TRAC_NETWORK_MSB_MAINNET_PREFIX;
-        this.#initKeyPair(options.mnemonic || null);
+        this.ready = this.#initKeyPair(options.mnemonic || null);
     }
 
     /**
@@ -27,7 +32,7 @@ class Wallet {
      * @returns {Buffer|null} The public key, or null if not set.
      */
     get publicKey() {
-        return this.#keyPair.publicKey || null;
+        return this.#keyPair.publicKey;
     }
 
     /**
@@ -35,7 +40,7 @@ class Wallet {
      * @returns {Buffer|null} The secret key, or null if not set.
      */
     get secretKey() {
-        return this.#keyPair.secretKey || null;
+        return this.#keyPair.secretKey;
     }
 
     /**
@@ -43,7 +48,7 @@ class Wallet {
      * @returns {string|null} The Bech32m encoded address, or null if not set.
      */
     get address() {
-        return this.#keyPair.address || null;
+        return this.#keyPair.address;
     }
 
     /**
@@ -105,7 +110,7 @@ class Wallet {
             const messageBuffer = b4a.isBuffer(message) ? message : b4a.from(message);
             const publicKeyBuffer = b4a.isBuffer(publicKey) ? publicKey : b4a.from(publicKey, 'hex');
             return sodium.crypto_sign_verify_detached(signatureBuffer, messageBuffer, publicKeyBuffer);
-        } catch (e) { console.log(e) }
+        } catch (e) { console.error(e) }
         return false;
     }
 
@@ -311,7 +316,6 @@ class Wallet {
      * @private
      */
     async #initKeyPair(mnemonic = null) {
-        console.log('Initializing key pair... Mnemonic = ', mnemonic);
         if (mnemonic) {
             try {
                 const kp = await tracCryptoApi.address.generate(this.#networkPrefix, mnemonic);
