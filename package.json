@@ -25,6 +25,7 @@
     "fs": "npm:bare-node-fs",
     "readline": "npm:bare-node-readline",
     "sodium-native": "^5.0.1",
+    "trac-crypto-api": "github:Trac-Systems/trac-crypto-api",
     "tty": "npm:bare-node-tty"
   },
   "devDependencies": {
