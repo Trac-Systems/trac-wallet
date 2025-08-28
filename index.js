@@ -288,8 +288,9 @@ class Wallet {
         // Convert obtained data to a keypair object
         const decryptedBuf = tracCryptoApi.data.decrypt(encrypted, password);
         const decrypted = JSON.parse(decryptedBuf.toString('utf8'));
-        decrypted.publicKey = b4a.from(decrypted.publicKey, 'hex');
-        decrypted.secretKey = b4a.from(decrypted.secretKey, 'hex');
+        decrypted.publicKey = this.sanitizePublicKey(decrypted.publicKey);
+        decrypted.secretKey = this.sanitizeSecretKey(decrypted.secretKey);
+        decrypted.mnemonic = this.sanitizeMnemonic(decrypted.mnemonic);
 
         // Cleanup sensitive data from memory
         tracCryptoApi.utils.memzero(encrypted.salt);
@@ -301,13 +302,13 @@ class Wallet {
 
     /**
      * Fills the keypair data from the provided object.
-     * @param {Object} data - Keypair data containing publicKey, secretKey, mnemonic in Buffer format.
+     * @param {Object} data - Keypair data containing sanitized publicKey, secretKey in Buffer format and mnemonic in hex string format.
      * @private
      */
     #fillKeypairData(data) {
-        this.#keyPair.publicKey = this.sanitizePublicKey(data.publicKey);
-        this.#keyPair.secretKey = this.sanitizeSecretKey(data.secretKey);
-        this.#keyPair.mnemonic = this.sanitizeMnemonic(data.mnemonic);
+        this.#keyPair.publicKey = data.publicKey;
+        this.#keyPair.secretKey = data.secretKey;
+        this.#keyPair.mnemonic = data.mnemonic;
         this.#keyPair.address = tracCryptoApi.address.encode(this.#networkPrefix, data.publicKey);
     }
 
