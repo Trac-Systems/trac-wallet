@@ -24,13 +24,31 @@ test('PeerWallet: sign produces a valid signature', async t => {
     t.ok(verify, 'signature is valid');
 });
 
-test('PeerWallet: can verify signature from another wallet', async t => {
+test('PeerWallet: can sign and verify with static methods', async t => {
+    const wallet = new PeerWallet({ mnemonic: mnemonic1 });
+    await wallet.ready;
+    const signature = PeerWallet.sign(message, wallet.secretKey);
+    const verify = PeerWallet.verify(signature, message, wallet.publicKey);
+    t.ok(verify, 'signature is valid');
+});
+
+test('PeerWallet: can sign and verify signature from another wallet', async t => {
     const wallet1 = new PeerWallet({ mnemonic: mnemonic1 });
     const wallet2 = new PeerWallet({ mnemonic: mnemonic2 });
     await wallet1.ready;
     await wallet2.ready;
     const signature = wallet1.sign(message);
     const verify = wallet2.verify(signature, message, wallet1.publicKey);
+    t.ok(verify, 'signature is valid');
+});
+
+test('PeerWallet: can sign with external private key', async t => {
+    const wallet1 = new PeerWallet({ mnemonic: mnemonic1 });
+    const wallet2 = new PeerWallet({ mnemonic: mnemonic2 });
+    await wallet1.ready;
+    await wallet2.ready;
+    const signature = wallet2.sign(message, wallet1.secretKey);
+    const verify = wallet1.verify(signature, message); // Defaults to verify with stored public key
     t.ok(verify, 'signature is valid');
 });
 

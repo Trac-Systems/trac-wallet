@@ -70,17 +70,7 @@ class Wallet {
      * @returns {Buffer} The signature as a Buffer, or empty Buffer on error.
      */
     static sign(message, privateKey) {
-        if (!b4a.isBuffer(message)) {
-            console.error('Message is required');
-            return b4a.alloc(0);
-        }
-
-        if (!privateKey) {
-            console.error('No private key provided');
-            return b4a.alloc(0);
-        }
-
-        tracCryptoApi.sign(message, privateKey);
+        return tracCryptoApi.sign(message, privateKey);
     }
 
     /**
@@ -88,12 +78,12 @@ class Wallet {
      * @param {Buffer} message - The message to sign.
      * @returns {Buffer} The signature as a Buffer, or empty Buffer on error.
      */
-    sign(message) {
-        if (!this.#keyPair.secretKey) {
-            console.error('No private key stored');
+    sign(message, privateKey = this.#keyPair.secretKey) {
+        if (!privateKey) {
+            console.error('No private key provided');
             return b4a.alloc(0);
         }
-        return tracCryptoApi.sign(message, this.#keyPair.secretKey);
+        return Wallet.sign(message, privateKey);
     }
 
     /**
@@ -129,10 +119,10 @@ class Wallet {
      * Verifies a signature using the wallet's public key.
      * @param {Buffer} signature - The signature to verify.
      * @param {Buffer} message - The message to verify.
-     * @param {Buffer} publicKey - The public key to verify against.
+     * @param {Buffer} publicKey - The public key to verify against. Defaults to stored public key
      * @returns {boolean} True if valid, false otherwise.
      */
-    verify(signature, message, publicKey) {
+    verify(signature, message, publicKey = this.#keyPair.publicKey) {
         return Wallet.verify(signature, message, publicKey);
     }
 
