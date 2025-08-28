@@ -94,22 +94,19 @@ class Wallet {
             console.error('No private key stored');
             return b4a.alloc(0);
         }
-        return this.constructor.sign(message, this.#keyPair.secretKey);
+        return tracCryptoApi.sign(message, this.#keyPair.secretKey);
     }
 
     /**
      * Verifies a message signature.
-     * @param {Buffer|string} signature - The signature to verify.
-     * @param {Buffer|string} message - The message to verify.
-     * @param {Buffer|string} publicKey - The public key to verify against.
+     * @param {Buffer} signature - The signature to verify.
+     * @param {Buffer} message - The message to verify.
+     * @param {Buffer} publicKey - The public key to verify against.
      * @returns {boolean} True if valid, false otherwise.
      */
     static verify(signature, message, publicKey) {
         try {
-            const signatureBuffer = b4a.isBuffer(signature) ? signature : b4a.from(signature, 'hex');
-            const messageBuffer = b4a.isBuffer(message) ? message : b4a.from(message);
-            const publicKeyBuffer = b4a.isBuffer(publicKey) ? publicKey : b4a.from(publicKey, 'hex');
-            return sodium.crypto_sign_verify_detached(signatureBuffer, messageBuffer, publicKeyBuffer);
+            return tracCryptoApi.signature.verify(signature, message, publicKey);
         } catch (e) { console.error(e) }
         return false;
     }
@@ -143,7 +140,7 @@ class Wallet {
     sanitizePublicKey(publicKey) {
         try {
             const buffer = b4a.from(publicKey, 'hex');
-            if (buffer.length !== sodium.crypto_sign_PUBLICKEYBYTES) {
+            if (buffer.length !== tracCryptoApi.address.PUB_KEY_SIZE) {
                 throw new Error('Invalid public key length');
             }
             return buffer;
@@ -161,7 +158,7 @@ class Wallet {
     sanitizeSecretKey(secretKey) {
         try {
             const buffer = b4a.from(secretKey, 'hex');
-            if (buffer.length !== sodium.crypto_sign_SECRETKEYBYTES) {
+            if (buffer.length !== tracCryptoApi.address.PRIV_KEY_SIZE) {
                 throw new Error('Invalid secret key length');
             }
             return buffer;
@@ -216,9 +213,9 @@ class Wallet {
         }
         finally {
             // Cleanup sensitive data from memory
-            sodium.sodium_memzero(encrypted.nonce);
-            sodium.sodium_memzero(encrypted.salt);
-            sodium.sodium_memzero(encrypted.ciphertext);
+            tracCryptoApi.utils.memzero(encrypted.nonce);
+            tracCryptoApi.utils.memzero(encrypted.salt);
+            tracCryptoApi.utils.memzero(encrypted.ciphertext);
         }
     }
 
@@ -289,9 +286,9 @@ class Wallet {
         const decrypted = tracCryptoApi.data.decrypt(encrypted, password);
 
         // Cleanup sensitive data from memory
-        sodium.sodium_memzero(encrypted.salt);
-        sodium.sodium_memzero(encrypted.nonce);
-        sodium.sodium_memzero(encrypted.ciphertext);
+        tracCryptoApi.utils.memzero(encrypted.salt);
+        tracCryptoApi.utils.memzero(encrypted.nonce);
+        tracCryptoApi.utils.memzero(encrypted.ciphertext);
 
         return decrypted;
     }

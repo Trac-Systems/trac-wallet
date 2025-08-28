@@ -25,7 +25,6 @@
     "bip39-mnemonic": "^2.2.0",
     "fs": "npm:bare-node-fs",
     "readline": "npm:bare-node-readline",
-    "sodium-native": "^5.0.1",
     "trac-crypto-api": "github:Trac-Systems/trac-crypto-api",
     "tty": "npm:bare-node-tty"
   },
@@ -35,7 +34,8 @@
     "chai": "^5.2.0",
     "chai-as-promised": "^8.0.1",
     "micro-key-producer": "^0.7.5",
-    "mocha": "^11.1.0"
+    "mocha": "^11.1.0",
+    "sodium-universal": "^5.0.1"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org",
