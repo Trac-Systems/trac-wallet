@@ -18,9 +18,20 @@ test('PeerWallet: sign produces a valid signature', async t => {
     const wallet = new PeerWallet({ mnemonic: mnemonic1 });
     await wallet.ready;
     const signature = wallet.sign(message);
+    const verify = wallet.verify(signature, message, wallet.publicKey);
     t.ok(b4a.isBuffer(signature), 'signature is a buffer');
     t.is(signature.length, tracCryptoApi.signature.SIZE, 'signature has correct length');
-    t.ok(wallet.verify(signature, message, wallet.publicKey), 'signature is valid');
+    t.ok(verify, 'signature is valid');
+});
+
+test('PeerWallet: can verify signature from another wallet', async t => {
+    const wallet1 = new PeerWallet({ mnemonic: mnemonic1 });
+    const wallet2 = new PeerWallet({ mnemonic: mnemonic2 });
+    await wallet1.ready;
+    await wallet2.ready;
+    const signature = wallet1.sign(message);
+    const verify = wallet2.verify(signature, message, wallet1.publicKey);
+    t.ok(verify, 'signature is valid');
 });
 
 test('PeerWallet: verify returns false for tampered message', async t => {

@@ -104,6 +104,21 @@ class Wallet {
      * @returns {boolean} True if valid, false otherwise.
      */
     static verify(signature, message, publicKey) {
+        if (!b4a.isBuffer(signature) || signature.length !== tracCryptoApi.signature.SIZE) {
+            console.error('Invalid signature');
+            return false;
+        }
+
+        if (!b4a.isBuffer(message) || message.length === 0) {
+            console.error('Invalid message');
+            return false;
+        }
+
+        if (!b4a.isBuffer(publicKey) || publicKey.length !== tracCryptoApi.address.PUB_KEY_SIZE) {
+            console.error('Invalid public key');
+            return false;
+        }
+
         try {
             return tracCryptoApi.signature.verify(signature, message, publicKey);
         } catch (e) { console.error(e) }
@@ -112,9 +127,9 @@ class Wallet {
 
     /**
      * Verifies a signature using the wallet's public key.
-     * @param {Buffer|string} signature - The signature to verify.
-     * @param {Buffer|string} message - The message to verify.
-     * @param {Buffer|string} publicKey - The public key to verify against.
+     * @param {Buffer} signature - The signature to verify.
+     * @param {Buffer} message - The message to verify.
+     * @param {Buffer} publicKey - The public key to verify against.
      * @returns {boolean} True if valid, false otherwise.
      */
     verify(signature, message, publicKey) {

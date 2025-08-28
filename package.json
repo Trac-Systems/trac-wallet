@@ -9,6 +9,7 @@
   },
   "scripts": {
     "test": "mocha",
+    "test:node": "brittle-node -c -t 180000 test/all.test.js",
     "test:bare": "brittle-bare -c -t 180000 test/all.test.js"
   },
   "keywords": [],
