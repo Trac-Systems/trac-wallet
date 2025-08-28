@@ -1,5 +1,4 @@
 /** @typedef {import('pear-interface')} */
-// import { fs, fsReady } from './fs-provider.js';
 import fs from 'fs';
 import readline from 'readline';
 import tty from 'tty'
@@ -174,7 +173,7 @@ class Wallet {
      * @returns {Promise<void>}
      * @throws {Error} If required parameters are missing or invalid.
      */
-    async exportToFile(filePath, password) {
+    exportToFile(filePath, password) {
         if (!filePath) {
             throw new Error('File path is required');
         }
@@ -205,7 +204,6 @@ class Wallet {
         });
 
         try {
-            await fsReady;
             fs.writeFileSync(filePath, fileData);
             console.log('Key pair exported to', filePath);
         } catch (err) {
@@ -226,16 +224,16 @@ class Wallet {
      * @returns {Promise<void>}
      * @throws {Error} If required parameters are missing or invalid.
      */
-    async importFromFile(filePath, password) {
+    importFromFile(filePath, password) {
         if (!filePath) {
             throw new Error('File path is required');
         }
 
         if (!b4a.isBuffer(password) || password.length === 0) {
-            throw new Error('Password is required');
+            throw new Error('Password must be a buffer with length greater than 0');
         }
 
-        const fileData = await this.#readFile(filePath);
+        const fileData = this.#readFile(filePath);
 
         if (!fileData.salt || !fileData.nonce || !fileData.ciphertext) {
             throw new Error('Could not decrypt keyfile. Data is invalid or corrupted');
@@ -257,15 +255,14 @@ class Wallet {
      * @throws {Error} If the file cannot be read or parsed.
      * @private
      */
-    async #readFile(path) {
+    #readFile(path) {
         try {
-            await fsReady;
             if (!fs.existsSync(path)) {
                 throw new Error(`File ${path} not found`);
             }
             return JSON.parse(fs.readFileSync(path, 'utf8'));
         } catch (err) {
-            throw new Error('Error reading file:', err);
+            throw new Error('Error reading file: ' + err.message);
         }
     }
 
@@ -283,7 +280,11 @@ class Wallet {
             ciphertext: b4a.from(fileData.ciphertext, 'hex')
         }
 
-        const decrypted = tracCryptoApi.data.decrypt(encrypted, password);
+        // Convert obtained data to a keypair object
+        const decryptedBuf = tracCryptoApi.data.decrypt(encrypted, password);
+        const decrypted = JSON.parse(decryptedBuf.toString('utf8'));
+        decrypted.publicKey = b4a.from(decrypted.publicKey, 'hex');
+        decrypted.secretKey = b4a.from(decrypted.secretKey, 'hex');
 
         // Cleanup sensitive data from memory
         tracCryptoApi.utils.memzero(encrypted.salt);
@@ -364,7 +365,6 @@ class PeerWallet extends Wallet {
             throw new Error("File path is required");
         }
         try {
-            await fsReady;
             if (fs.existsSync(filePath)) {
                 // TODO: Fix. There is no unencrypted keyfile anymore
                 const keyPair = JSON.parse(fs.readFileSync(filePath));
