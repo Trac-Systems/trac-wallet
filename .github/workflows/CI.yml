@@ -31,5 +31,9 @@ jobs:
           cache: 'npm'
       - name: Install dependencies
         run: npm ci
-      - name: Run tests
-        run: npx mocha test.js
+      - name: Run node tests
+        run: npm run test:node
+      - name: Install bare
+        run: npm i -g bare
+      - name: Run bare tests
+        run: npm run test:bare
