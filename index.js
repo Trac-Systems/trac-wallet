@@ -1,480 +1,150 @@
 /** @typedef {import('pear-interface')} */
-import { generateMnemonic, validateMnemonic, mnemonicToSeed } from 'bip39-mnemonic';
-import { fs, fsReady } from './fs-provider.js';
+import fs from 'fs';
 import readline from 'readline';
 import tty from 'tty'
-import b4a from 'b4a';
-import { bech32m } from 'bech32';
-import { RANDOM_BUFFER_SIZE, ENCRYPTION_KEY_BYTES, TRAC_NETWORK_MSB_MAINNET_PREFIX } from './constants.js';
-import { hash } from './crypto.js'
-import sodium from 'sodium-native'
+import b4a, { isBuffer } from 'b4a';
+import { TRAC_NETWORK_MSB_MAINNET_PREFIX } from './constants.js';
+import tracCryptoApi from 'trac-crypto-api';
 
 class Wallet {
-    #keyPair;
-    #address;
     #networkPrefix;
+    #keyPair;
+    ready;
 
     /**
      * Creates a new Wallet instance.
-     * @param {Object} options - An object containing the following properties:
-     * @param {string} options.mnemonic - The mnemonic phrase to use for key generation.
+     * @param {Object} options - Wallet options.
+     * @param {string} [options.mnemonic] - Optional mnemonic phrase for key generation.
+     * @param {string} [options.networkPrefix] - Optional network prefix for address encoding.
      */
+    // Disclaimer: Please note that the function #initKeyPair is async. This means that the keypair is not set
+    // until the function finishes executing. For most cases, this will be irrelevant, but it can lead to errors
+    // if you try to access the keypair properties before the function has completed.
+    // Always use await Wallet.ready before trying to access the keypair.
     constructor(options = {}) {
         this.#networkPrefix = options.networkPrefix || TRAC_NETWORK_MSB_MAINNET_PREFIX;
-
-        if (options.mnemonic) {
-            this.generateKeyPair(options.mnemonic);
-        } else {
-            this.#keyPair = {
-                publicKey: null,
-                secretKey: null
-            };
-            this.#address = null;
-        }
+        this.ready = this.#initKeyPair(options.mnemonic || null);
     }
 
     /**
-     * Returns the public key as a hex string.
-     * @returns {string|null} The public key in hex format or null if not set.
+     * Gets the public key as a Buffer.
+     * @returns {Buffer|null} The public key, or null if not set.
      */
     get publicKey() {
-        if (!this.#keyPair.publicKey) {
-            return null;
-        }
         return this.#keyPair.publicKey;
     }
 
     /**
-     * Returns the secret key as a hex string.
-     * @returns {string|null} The secret key in hex format or null if not set.
+     * Gets the secret key as a Buffer.
+     * @returns {Buffer|null} The secret key, or null if not set.
      */
     get secretKey() {
-        if (!this.#keyPair.secretKey) {
-            return null;
-        }
         return this.#keyPair.secretKey;
     }
 
     /**
-     * Sets the key pair directly.
-     * @param {Object} keyPair - An object containing the publicKey and secretKey as hex strings.
-     * @throws Will throw an error if the key pair is invalid.
-     */
-    set keyPair(keyPair) {
-        if (!keyPair || !keyPair.publicKey || !keyPair.secretKey) {
-            throw new Error('Invalid key pair. Please provide a valid object with publicKey and secretKey');
-        }
-        this.#keyPair = this.sanitizeKeyPair(keyPair.publicKey, keyPair.secretKey);
-        this.#address = Wallet.encodeBech32m(this.#keyPair.publicKey, this.#networkPrefix);
-    }
-
-    /**
-     * Returns the TRAC address for the wallet.
-     * If the public key is not set, returns null.
-     * If the address has not been generated yet, it will be created by calling #setupTracAddress().
-     * @returns {Buffer|null} The TRAC address as a Buffer, or null if the public key is not set.
+     * Gets the TRAC address for the wallet.
+     * @returns {string|null} The Bech32m encoded address, or null if not set.
      */
     get address() {
-        if (!this.#keyPair.publicKey || !this.#address) {
-            return null;
-        }
-        return this.#address;
+        return this.#keyPair.address;
     }
 
     /**
-     * Initializes the wallet key pair and address from a mnemonic.
-     * This method generates the key pair using the provided mnemonic and sets the wallet's address
-     * by encoding the public key with the network prefix using bech32m encoding.
-     * 
-     * @param {string} mnemonic - The mnemonic phrase to generate the key pair from.
+     * Generates a new key pair and address from a mnemonic.
+     * If no mnemonic is provided, a new one is generated.
+     * @param {string} [mnemonic] - Optional mnemonic phrase.
      * @returns {Promise<void>}
-     * @private
      */
-    async generateKeyPair(mnemonic) {
+    async generateKeyPair(mnemonic = null) {
+        if (!mnemonic) {
+            mnemonic = tracCryptoApi.mnemonic.generate();
+        }
         await this.#initKeyPair(mnemonic);
-        this.#address = Wallet.encodeBech32m(this.#keyPair.publicKey, this.#networkPrefix);
     }
 
     /**
-     * Encodes a 32-byte public key Buffer into a bech32m address string.
-     * @param {Buffer} pubKey - The buffer to encode (must be 32 bytes).
-     * @param {string} hrp - The human-readable part (HRP) for the address (prefix).
-     * @returns {string} The bech32m encoded address.
-     * @throws Will throw an error if the buffer is not a Buffer or not 32 bytes.
+     * Signs a message with the provided private key.
+     * @param {Buffer} message - The message to sign.
+     * @param {Buffer} privateKey - The private key for signing.
+     * @returns {Buffer} The signature as a Buffer, or empty Buffer on error.
      */
-    static encodeBech32m(pubKey, hrp = TRAC_NETWORK_MSB_MAINNET_PREFIX) {
-        if (!b4a.isBuffer(pubKey) || pubKey.length !== sodium.crypto_sign_PUBLICKEYBYTES) { // TODO. Maybe checking length is out of the scope of this function. Whoever calls this is responsible for ensuring data correct length
-            throw new Error(`Buffer must be ${sodium.crypto_sign_PUBLICKEYBYTES} bytes`);
-        }
-        const words = bech32m.toWords(pubKey);
-        return bech32m.encode(hrp, words);
+    static sign(message, privateKey) {
+        return tracCryptoApi.sign(message, privateKey);
     }
 
     /**
-     * Safely encodes a 32-byte public key Buffer into a bech32m address string.
-     * Returns null if the input is invalid.
-     * @param {Buffer} pubKey - The buffer to encode (must be 32 bytes).
-     * @param {string} hrp - The human-readable part (HRP) for the address (prefix).
-     * @returns {string|null} The bech32m encoded address, or null if input is invalid.
+     * Signs a message using the wallet's stored secret key.
+     * @param {Buffer} message - The message to sign.
+     * @returns {Buffer} The signature as a Buffer, or empty Buffer on error.
      */
-    static encodeBech32mSafe(pubKey, hrp = TRAC_NETWORK_MSB_MAINNET_PREFIX) {
-        try {
-            return Wallet.encodeBech32m(pubKey, hrp);
-        } catch (e) {
-            return null;
+    sign(message, privateKey = this.#keyPair.secretKey) {
+        if (!privateKey) {
+            console.error('No private key provided');
+            return b4a.alloc(0);
         }
-    }
-
-    /**
-     * Decodes a bech32m address string into a 32-byte public key Buffer.
-     * @param {string} address - The bech32m encoded address.
-     * @returns {Buffer} The decoded 32-byte public key buffer.
-     * @throws Will throw an error if the decoded buffer is not 32 bytes.
-     */
-    static decodeBech32m(address) {
-        const { words } = bech32m.decode(address);
-        const buffer = b4a.from(bech32m.fromWords(words));
-        if (buffer.length !== sodium.crypto_sign_PUBLICKEYBYTES) { // TODO: Maybe this is not in the scope of this function?
-            throw new Error(`Decoded buffer is invalid. Expected ${sodium.crypto_sign_PUBLICKEYBYTES} bytes, got ${buffer.length} bytes`);
-        }
-        return buffer;
-    }
-
-    /**
-     * Safely decodes a bech32m address string into a 32-byte public key Buffer.
-     * Returns null if the input is invalid or the decoded buffer is not 32 bytes.
-     * @param {string} address - The bech32m encoded address.
-     * @returns {Buffer|null} The decoded 32-byte public key buffer, or null if input is invalid.
-     */
-    static decodeBech32mSafe(address) {
-        try {
-            return Wallet.decodeBech32m(address);
-        } catch (e) {
-            return null;
-        }
+        return Wallet.sign(message, privateKey);
     }
 
     /**
      * Verifies a message signature.
-     * @param {string || Buffer} signature - The signature in hex or Buffer format.
-     * @param {string || Buffer} message - The message to verify in string or Buffer.
-     * @param {string || Buffer} publicKey - The public key in hex or Buffer format.
-     * @returns {boolean} True if the signature is valid, false otherwise.
+     * @param {Buffer} signature - The signature to verify.
+     * @param {Buffer} message - The message to verify.
+     * @param {Buffer} publicKey - The public key to verify against.
+     * @returns {boolean} True if valid, false otherwise.
      */
     static verify(signature, message, publicKey) {
+        if (!b4a.isBuffer(signature) || signature.length !== tracCryptoApi.signature.SIZE) {
+            console.error('Invalid signature');
+            return false;
+        }
+
+        if (!b4a.isBuffer(message) || message.length === 0) {
+            console.error('Invalid message');
+            return false;
+        }
+
+        if (!b4a.isBuffer(publicKey) || publicKey.length !== tracCryptoApi.address.PUB_KEY_SIZE) {
+            console.error('Invalid public key');
+            return false;
+        }
+
         try {
-            const signatureBuffer = b4a.isBuffer(signature) ? signature : b4a.from(signature, 'hex');
-            const messageBuffer = b4a.isBuffer(message) ? message : b4a.from(message);
-            const publicKeyBuffer = b4a.isBuffer(publicKey) ? publicKey : b4a.from(publicKey, 'hex');
-            return sodium.crypto_sign_verify_detached(signatureBuffer, messageBuffer, publicKeyBuffer);
-        } catch (e) { console.log(e) }
+            return tracCryptoApi.signature.verify(signature, message, publicKey);
+        } catch (e) { console.error(e) }
         return false;
     }
 
     /**
-     * Instance method for signature verification.
+     * Verifies a signature using the wallet's public key.
+     * @param {Buffer} signature - The signature to verify.
+     * @param {Buffer} message - The message to verify.
+     * @param {Buffer} publicKey - The public key to verify against. Defaults to stored public key
+     * @returns {boolean} True if valid, false otherwise.
      */
-    verify(signature, message, publicKey) {
+    verify(signature, message, publicKey = this.#keyPair.publicKey) {
         return Wallet.verify(signature, message, publicKey);
     }
 
     /**
-     * Generates a new mnemonic phrase.
-     * @returns {string} A new mnemonic phrase.
-     */
-    generateMnemonic() {
-        return generateMnemonic();
-    }
-
-    /**
-     * Creates a hash of the given message using the specified algorithm.
-     * @param {string} type - The hash algorithm to use (e.g., 'sha256', 'sha1', 'sha384', 'sha512').
-     * @param {string} message - The message to hash.
-     * @returns {string} The hash in hex format.
-    */
-    // TODO: Refactor / improve security for this function
-    async createHash(type, message) {
-        return await hash(message, type)
-    }
-
-    /**
-     * Generates a key pair from a mnemonic phrase.
-     * @param {string} mnemonic - The mnemonic phrase.
-     * @throws Will throw an error if the mnemonic is invalid.
-     */
-    async #initKeyPair(mnemonic) {
-        // TODO: Include a warning stating that the previous keys will be deleted if a new mnemonic is provided
-        let safeMnemonic = this.sanitizeMnemonic(mnemonic);
-
-        // TODO: Should we just return an error instead? The user will not be able backup the keys if we do this
-        if (!safeMnemonic) {
-            safeMnemonic = generateMnemonic();
-        }
-
-        const seed = await mnemonicToSeed(safeMnemonic);
-
-        const publicKey = b4a.alloc(sodium.crypto_sign_PUBLICKEYBYTES);
-        const secretKey = b4a.alloc(sodium.crypto_sign_SECRETKEYBYTES);
-
-        const seed32 = await hash(seed);
-
-        sodium.crypto_sign_seed_keypair(publicKey, secretKey, seed32);
-
-        this.#keyPair.publicKey = publicKey;
-        this.#keyPair.secretKey = secretKey;
-    }
-
-    /**
-     * Signs a message with the stored secret key.
-     * @param {string} message - The message to sign.
-     * @param {Buffer} privateKey - The private key to use for signing. If not provided, the stored secret key will be used.
-     * @returns {string} The signature in hex format.
-     * @throws Will throw an error if the secret key is not set.
-     */
-    sign(message, privateKey = null) {
-        if (!this.#keyPair.secretKey && !privateKey) {
-            throw new Error('No key pair found. Please, generate a key pair first');
-        }
-
-        const keyToUse = privateKey || this.#keyPair.secretKey;
-
-        if (!b4a.isBuffer(keyToUse)) {
-            throw new Error('Private key must be a Buffer');
-        }
-
-        if (keyToUse.length !== sodium.crypto_sign_SECRETKEYBYTES) {
-            throw new Error('Invalid private key length');
-        }
-
-        const messageBuffer = b4a.isBuffer(message) ? message : b4a.from(message);
-        const signature = b4a.alloc(sodium.crypto_sign_BYTES);
-        sodium.crypto_sign_detached(signature, messageBuffer, keyToUse);
-        return signature;
-    }
-
-    /**
-     * Encrypts the exported key file data
-     * @param {Buffer} data - The data to encrypt.
-     * @param {Buffer} key - A 32-byte encryption key.
-     * @returns {Object} The encrypted data as JSON containing nonce and cyphertext.
-     */
-    encrypt(data, key) {
-        if (!b4a.isBuffer(key) || key.length !== ENCRYPTION_KEY_BYTES) {
-            throw new Error(`Key must be a ${ENCRYPTION_KEY_BYTES} bytes long buffer`);
-        }
-
-        if (!b4a.isBuffer(data)) {
-            throw new Error('Data must be a Buffer');
-        }
-
-        const nonce = b4a.alloc(sodium.crypto_secretbox_NONCEBYTES);
-        sodium.randombytes_buf(nonce);
-        const ciphertext = b4a.alloc(data.length + sodium.crypto_secretbox_MACBYTES);
-        sodium.crypto_secretbox_easy(ciphertext, data, nonce, key);
-
-        const returnData = {
-            nonce: nonce.toString('hex'),
-            ciphertext: ciphertext.toString('hex')
-        };
-
-        // Cleanup sensitive data from memory
-        sodium.sodium_memzero(nonce);
-        sodium.sodium_memzero(ciphertext);
-
-        return returnData;
-    }
-
-    /**
-     * Decrypts the encrypted key file data using sodium-native.
-     * @param {string|Object} encryptedData - The encrypted data as a JSON string or an object.
-     * @param {Buffer} key - A 32-byte decryption key.
-     * @returns {Object} The decrypted JSON containing the key pair.
-     * @throws Will throw an error if decryption fails.
-     */
-    decrypt(encryptedData, key) {
-        if (key.length !== ENCRYPTION_KEY_BYTES) {
-            throw new Error(`Key must be ${ENCRYPTION_KEY_BYTES} bytes long`);
-        }
-
-        const data = typeof encryptedData === 'string' ? JSON.parse(encryptedData) : encryptedData;
-
-        if (!data.nonce || !data.ciphertext) {
-            throw new Error('Invalid encrypted data format. Missing nonce or ciphertext.');
-        }
-
-        const nonceBuffer = b4a.from(data.nonce, 'hex');
-        const ciphertextBuffer = b4a.from(data.ciphertext, 'hex');
-        const messageBuffer = b4a.alloc(ciphertextBuffer.length - sodium.crypto_secretbox_MACBYTES);
-
-        if (!sodium.crypto_secretbox_open_easy(messageBuffer, ciphertextBuffer, nonceBuffer, key)) {
-            throw new Error('Failed to decrypt data. Invalid key or corrupted data.');
-        }
-
-        const returnData = JSON.parse(messageBuffer.toString('utf8'));
-
-        // Cleanup sensitive data from memory
-        sodium.sodium_memzero(nonceBuffer);
-        sodium.sodium_memzero(ciphertextBuffer);
-        sodium.sodium_memzero(messageBuffer);
-
-        return returnData;
-    }
-
-    /**
-     * Derives a key from the password and salt using Argon2i.
-     * @param {Buffer} password - The password to derive the key from.
-     * @param {Buffer} salt - The salt to use for key derivation.
-     * @returns {Buffer} The derived key.
-     */
-    #deriveKey(password, salt) {
-        if (!b4a.isBuffer(password) || !b4a.isBuffer(salt)) {
-            throw new Error('Password and salt must be buffers');
-        }
-
-        const key = b4a.alloc(ENCRYPTION_KEY_BYTES);
-        sodium.crypto_pwhash(
-            key,
-            password,
-            salt,
-            sodium.crypto_pwhash_OPSLIMIT_MODERATE,
-            sodium.crypto_pwhash_MEMLIMIT_MODERATE,
-            sodium.crypto_pwhash_ALG_ARGON2I13
-        );
-
-        return key;
-    }
-
-    /**
-     * Exports the key pair to a JSON file.
-     * @param {string} filePath - The path to the file where the keys will be saved.
-     * @param {string} [mnemonic=null] - The mnemonic phrase to include in the file. If null, it will not be included.
-     * @param {Buffer|null} [encryptionKey=""] - The encryption key to use for encrypting the file. If not provided, the file will not be encrypted.
-     * @throws Will throw an error if the key pair is not set.
-     */
-    async exportToFile(filePath, mnemonic = null, encryptionKey = null) { // TODO: In the future, the encryptionKey parameter should not be optional!
-        if (!this.#keyPair.secretKey) {
-            throw new Error('No key pair found');
-        }
-
-        let fileData = "";
-        let key = null;
-        let salt = null;
-        let shouldEncrypt = false; // TODO: This is just a temporary solution for backward compatibility. In the future, the encryption will be mandatory
-
-        if (!b4a.isBuffer(encryptionKey) && encryptionKey !== null) {
-            throw new Error('Encryption key must either be a buffer or null');
-        }
-
-        if (encryptionKey) {
-            shouldEncrypt = true;
-        }
-
-        const data = {
-            publicKey: this.#keyPair.publicKey.toString('hex'),
-            secretKey: this.#keyPair.secretKey.toString('hex')
-        };
-
-        const safeMnemonic = this.sanitizeMnemonic(mnemonic);
-        if (safeMnemonic !== null) {
-            data['mnemonic'] = safeMnemonic;
-        }
-
-        const message = JSON.stringify(data, null, 2);
-
-        if (!shouldEncrypt) {
-            fileData = message;
-        } else {
-            salt = b4a.alloc(sodium.crypto_pwhash_SALTBYTES);
-            sodium.randombytes_buf(salt);
-            key = this.#deriveKey(encryptionKey, salt);
-
-            const msgBuf = b4a.from(message, 'utf8');
-            const fdata = this.encrypt(msgBuf, key);
-            fdata.salt = salt.toString('hex');
-            fileData = JSON.stringify(fdata, null, 2);
-        }
-
-        try {
-            await fsReady;
-            fs.writeFileSync(filePath, fileData);
-            console.log('Key pair exported to', filePath);
-        } catch (err) {
-            console.error('Error writing to file:', err);
-        }
-        finally {
-            // Cleanup sensitive data from memory
-            if (shouldEncrypt) {
-                sodium.sodium_memzero(key);
-                sodium.sodium_memzero(salt);
-            }
-        }
-    }
-
-    /**
-     * Imports a key pair from a JSON file.
-     * @param {string} filePath - The path to the file where the keys are saved.
-     * @param {Buffer|null} [encryptionKey=""] - The encryption key to use for decrypting the file. If not provided, the function assumes the file is not encrypted.
-     */
-    async importFromFile(filePath, encryptionKey = null) { // TODO: In the future, the key parameter should not be optional!
-        let data;
-        try {
-            await fsReady;
-            if (!fs.existsSync(filePath)) {
-                throw new Error(`File ${filePath} not found`);
-            }
-            data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-        } catch (err) {
-            throw new Error('Error importing file:', err);
-        }
-
-        if (encryptionKey !== null) {
-            if (!data.salt || !data.nonce || !data.ciphertext) {
-                throw new Error('Could not decrypt keyfile. Data is invalid or corrupted');
-            }
-
-            const salt = b4a.from(data.salt, 'hex');
-            const key = this.#deriveKey(encryptionKey, salt);
-
-            data = this.decrypt(data, key);
-
-            // Cleanup sensitive data from memory
-            sodium.sodium_memzero(key);
-            sodium.sodium_memzero(salt);
-        }
-        this.#keyPair = this.sanitizeKeyPair(data.publicKey, data.secretKey);
-    }
-
-    /**
      * Sanitizes and validates a mnemonic phrase.
-     * @param {string} mnemonic - The mnemonic phrase to sanitize.
-     * @returns {string|null} The sanitized mnemonic or null if the input is invalid.
-     * @throws Will throw an error if the mnemonic is invalid.
+     * @param {string} mnemonic - The mnemonic phrase.
+     * @returns {string|null} The sanitized mnemonic, or null if invalid.
      */
     sanitizeMnemonic(mnemonic) {
-        if (!mnemonic) {
-            return null;
-        }
-        const sanitized = mnemonic.toLowerCase().trim().split(' ').filter(word => word.trim()).join(' ');
-
-        // Check if all words are valid
-        const words = sanitized.split(' ');
-        if (!validateMnemonic(sanitized)) {
-            throw new Error('Invalid mnemonic phrase');
-        }
-
-        return sanitized;
+        return tracCryptoApi.mnemonic.sanitize(mnemonic);
     }
 
     /**
      * Sanitizes and validates a public key.
      * @param {string} publicKey - The public key in hex format.
-     * @returns {Buffer} The sanitized public key as a buffer.
-     * @throws Will throw an error if the public key is invalid.
+     * @returns {Buffer} The sanitized public key as a Buffer.
+     * @throws {Error} If the public key is invalid.
      */
     sanitizePublicKey(publicKey) {
         try {
             const buffer = b4a.from(publicKey, 'hex');
-            if (buffer.length !== sodium.crypto_sign_PUBLICKEYBYTES) {
+            if (buffer.length !== tracCryptoApi.address.PUB_KEY_SIZE) {
                 throw new Error('Invalid public key length');
             }
             return buffer;
@@ -486,13 +156,13 @@ class Wallet {
     /**
      * Sanitizes and validates a secret key.
      * @param {string} secretKey - The secret key in hex format.
-     * @returns {Buffer} The sanitized secret key as a buffer.
-     * @throws Will throw an error if the secret key is invalid.
+     * @returns {Buffer} The sanitized secret key as a Buffer.
+     * @throws {Error} If the secret key is invalid.
      */
     sanitizeSecretKey(secretKey) {
         try {
             const buffer = b4a.from(secretKey, 'hex');
-            if (buffer.length !== sodium.crypto_sign_SECRETKEYBYTES) {
+            if (buffer.length !== tracCryptoApi.address.PRIV_KEY_SIZE) {
                 throw new Error('Invalid secret key length');
             }
             return buffer;
@@ -502,43 +172,207 @@ class Wallet {
     }
 
     /**
-     * Sanitizes and validates a key pair.
-     * @param {string} publicKey - The public key in hex format.
-     * @param {string} secretKey - The secret key in hex format.
-     * @returns {Object} An object containing the sanitized publicKey and secretKey as buffers.
+     * Exports the key pair to an encrypted JSON file.
+     * @param {string} filePath - Path to save the file.
+     * @param {Buffer} password - Buffer used for encryption.
+     * @returns {Promise<void>}
+     * @throws {Error} If required parameters are missing or invalid.
      */
-    sanitizeKeyPair(publicKey, secretKey) {
-        return {
-            publicKey: this.sanitizePublicKey(publicKey),
-            secretKey: this.sanitizeSecretKey(secretKey)
+    exportToFile(filePath, password) {
+        if (!filePath) {
+            throw new Error('File path is required');
+        }
+
+        if (!b4a.isBuffer(password) || password.length === 0) {
+            throw new Error('Password must be a buffer');
+        }
+
+        if (!this.#keyPair.secretKey) {
+            throw new Error('No key pair stored');
+        }
+
+        const data = {
+            publicKey: this.#keyPair.publicKey.toString('hex'),
+            secretKey: this.#keyPair.secretKey.toString('hex'),
+            mnemonic: this.#keyPair.mnemonic
         };
+
+        const message = JSON.stringify(data, null, 2);
+        const msgBuf = b4a.from(message, 'utf8');
+
+        const encrypted = tracCryptoApi.data.encrypt(msgBuf, password)
+
+        const fileData = JSON.stringify({
+            nonce: encrypted.nonce.toString('hex'),
+            salt: encrypted.salt.toString('hex'),
+            ciphertext: encrypted.ciphertext.toString('hex')
+        });
+
+        try {
+            fs.writeFileSync(filePath, fileData);
+            console.log('Key pair exported to', filePath);
+        } catch (err) {
+            console.error('Error writing to file:', err);
+        }
+        finally {
+            // Cleanup sensitive data from memory
+            tracCryptoApi.utils.memzero(encrypted.nonce);
+            tracCryptoApi.utils.memzero(encrypted.salt);
+            tracCryptoApi.utils.memzero(encrypted.ciphertext);
+        }
     }
+
     /**
-     * Generates a random nonce with high entrophy.
-     * 
-     * @returns {Buffer} A securely generated 32-byte nonce as a Buffer.
+     * Imports a key pair from an encrypted JSON file.
+     * @param {string} filePath - Path to the file.
+     * @param {Buffer} password - Buffer used for decryption.
+     * @returns {Promise<void>}
+     * @throws {Error} If required parameters are missing or invalid.
      */
-    static generateNonce() {
-        const nonce = b4a.alloc(RANDOM_BUFFER_SIZE);
-        sodium.randombytes_buf(nonce);
-        return nonce;
+    importFromFile(filePath, password) {
+        if (!filePath) {
+            throw new Error('File path is required');
+        }
+
+        if (!b4a.isBuffer(password) || password.length === 0) {
+            throw new Error('Password must be a buffer with length greater than 0');
+        }
+
+        const fileData = this.#readFile(filePath);
+
+        if (!fileData.salt || !fileData.nonce || !fileData.ciphertext) {
+            throw new Error('Could not decrypt keyfile. Data is invalid or corrupted');
+        }
+
+        const decrypted = this.#decryptKeystore(fileData, password);
+
+        if (!isBuffer(decrypted.publicKey) || !isBuffer(decrypted.secretKey)) {
+            throw new Error('Decrypted data does not contain valid keys');
+        }
+
+        this.#fillKeypairData(decrypted);
+    }
+
+    /**
+     * Reads and parses a JSON file from disk.
+     * @param {string} path - Path to the file.
+     * @returns {Promise<Object>} Parsed file data as an object.
+     * @throws {Error} If the file cannot be read or parsed.
+     * @private
+     */
+    #readFile(path) {
+        try {
+            if (!fs.existsSync(path)) {
+                throw new Error(`File ${path} not found`);
+            }
+            return JSON.parse(fs.readFileSync(path, 'utf8'));
+        } catch (err) {
+            throw new Error('Error reading file: ' + err.message);
+        }
+    }
+
+    /**
+     * Decrypts the keystore data using the provided password.
+     * @param {Object} fileData - Encrypted file data containing salt, nonce, and ciphertext (hex strings).
+     * @param {Buffer} password - Buffer used for decryption.
+     * @returns {Object} Decrypted keypair data.
+     * @private
+     */
+    #decryptKeystore(fileData, password) {
+        const encrypted = {
+            salt: b4a.from(fileData.salt, 'hex'),
+            nonce: b4a.from(fileData.nonce, 'hex'),
+            ciphertext: b4a.from(fileData.ciphertext, 'hex')
+        }
+
+        // Convert obtained data to a keypair object
+        const decryptedBuf = tracCryptoApi.data.decrypt(encrypted, password);
+        const decrypted = JSON.parse(decryptedBuf.toString('utf8'));
+        decrypted.publicKey = this.sanitizePublicKey(decrypted.publicKey);
+        decrypted.secretKey = this.sanitizeSecretKey(decrypted.secretKey);
+        decrypted.mnemonic = this.sanitizeMnemonic(decrypted.mnemonic);
+
+        // Cleanup sensitive data from memory
+        tracCryptoApi.utils.memzero(encrypted.salt);
+        tracCryptoApi.utils.memzero(encrypted.nonce);
+        tracCryptoApi.utils.memzero(encrypted.ciphertext);
+
+        return decrypted;
+    }
+
+    /**
+     * Fills the keypair data from the provided object.
+     * @param {Object} data - Keypair data containing sanitized publicKey, secretKey in Buffer format and mnemonic in hex string format.
+     * @private
+     */
+    #fillKeypairData(data) {
+        this.#keyPair.publicKey = data.publicKey;
+        this.#keyPair.secretKey = data.secretKey;
+        this.#keyPair.mnemonic = data.mnemonic;
+        this.#keyPair.address = tracCryptoApi.address.encode(this.#networkPrefix, data.publicKey);
+    }
+
+    /**
+     * Initializes the wallet key pair and address from a mnemonic.
+     * If no mnemonic is provided, all values are set to null.
+     * @param {string|null} mnemonic - Optional mnemonic phrase.
+     * @returns {Promise<void>}
+     * @private
+     */
+    async #initKeyPair(mnemonic = null) {
+        if (mnemonic) {
+            try {
+                const kp = await tracCryptoApi.address.generate(this.#networkPrefix, mnemonic);
+                if (kp && kp.publicKey && kp.secretKey && kp.mnemonic && kp.address) {
+                    this.#keyPair = {
+                        publicKey: kp.publicKey,
+                        secretKey: kp.secretKey,
+                        mnemonic: kp.mnemonic,
+                        address: kp.address
+                    };
+                    return;
+                } else {
+                    throw new Error('Invalid keypair generated');
+                }
+            }
+            catch (e) {
+                throw new Error('Error initializing keypair: ' + e.message);
+            }
+        }
+        // If no mnemonic was provided, set all values to null
+        this.#keyPair = {
+            address: null,
+            publicKey: null,
+            secretKey: null,
+            mnemonic: null,
+        };
     }
 }
 
 class PeerWallet extends Wallet {
     #readlineInstance = null;
 
+    /**
+     * Creates a new PeerWallet instance.
+     * @param {Object} options - Wallet options.
+     */
     constructor(options = {}) {
         super(options);
     }
 
+    /**
+     * Initializes the keypair from a file or interactively if not found.
+     * @param {string} filePath - Path to the keypair file.
+     * @param {readline.Interface|null} [readline_instance] - Optional readline instance for interactive mode.
+     * @returns {Promise<void>}
+     */
     async initKeyPair(filePath, readline_instance = null) {
         if (!filePath) {
             throw new Error("File path is required");
         }
         try {
-            await fsReady;
             if (fs.existsSync(filePath)) {
+                // TODO: Fix. There is no unencrypted keyfile anymore
                 const keyPair = JSON.parse(fs.readFileSync(filePath));
                 this.keyPair = {
                     publicKey: keyPair.publicKey,
@@ -573,6 +407,12 @@ class PeerWallet extends Wallet {
         }
     }
 
+    /**
+     * Interactive setup for keypair creation or import.
+     * @param {readline.Interface|null} [readline_instance] - Optional readline instance.
+     * @returns {Promise<Object>} Response object with type and value.
+     * @private
+     */
     async #setupKeypairInteractiveMode(readline_instance = null) {
         if ((global.Pear !== undefined && global.Pear.config.options.type === 'terminal') || global.Pear === undefined) {
             let rl;
@@ -599,7 +439,7 @@ class PeerWallet extends Wallet {
             }
             rl.on('line', choiceFunc);
             while ('' === choice) {
-                await this.sleep(1000);
+                await this.#sleep(1000);
             }
             rl.off('line', choiceFunc);
             try {
@@ -618,7 +458,7 @@ class PeerWallet extends Wallet {
                         };
                         rl.on('line', mnem);
                         while ('' === mnemonicInput) {
-                            await this.sleep(1000);
+                            await this.#sleep(1000);
                         }
                         rl.off('line', mnem);
                         response = {
@@ -634,7 +474,7 @@ class PeerWallet extends Wallet {
                         console.log("Enter your public key:");
                         rl.on('line', pubkey);
                         while ('' === publicKey) {
-                            await this.sleep(1000);
+                            await this.#sleep(1000);
                         }
                         rl.off('line', pubkey);
                         console.log("Enter your secret key:");
@@ -644,7 +484,7 @@ class PeerWallet extends Wallet {
                         };
                         rl.on('line', seckey);
                         while ('' === secretKey) {
-                            await this.sleep(1000);
+                            await this.#sleep(1000);
                         }
                         rl.off('line', seckey);
                         response = {
@@ -663,7 +503,7 @@ class PeerWallet extends Wallet {
                         };
                         rl.on('line', fpath);
                         while ('' === filePath) {
-                            await this.sleep(1000);
+                            await this.#sleep(1000);
                         }
                         rl.off('line', fpath);
                         response = {
@@ -692,13 +532,22 @@ class PeerWallet extends Wallet {
         };
     }
 
+    /**
+     * Closes the readline instance if open.
+     * @returns {Promise<void>}
+     */
     async close() {
         if (this.#readlineInstance !== null) {
             await this.#readlineInstance.close();
         }
     }
 
-    async sleep(ms) {
+    /**
+     * Sleeps for the specified milliseconds.
+     * @param {number} ms - Milliseconds to sleep.
+     * @returns {Promise<void>}
+     */
+    async #sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 }
