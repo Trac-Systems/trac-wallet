@@ -8,31 +8,27 @@
     "type": "terminal"
   },
   "scripts": {
-    "test": "mocha"
+    "test:node": "brittle-node -c -t 180000 test/all.test.js",
+    "test:bare": "brittle-bare -c -t 180000 test/all.test.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@tracsystems/blake3": "^0.0.5",
     "b4a": "1.6.7",
     "bare-fs": "^4.0.2",
     "bare-readline": "1.0.7",
     "bare-tty": "^5.0.2",
-    "bech32": "^2.0.0",
-    "bip39-mnemonic": "^2.2.0",
     "fs": "npm:bare-node-fs",
     "readline": "npm:bare-node-readline",
-    "sodium-native": "^5.0.1",
+    "trac-crypto-api": "github:Trac-Systems/trac-crypto-api",
     "tty": "npm:bare-node-tty"
   },
   "devDependencies": {
-    "bip39": "^3.1.0",
-    "chai": "^5.2.0",
-    "chai-as-promised": "^8.0.1",
+    "brittle": "^3.18.0",
     "micro-key-producer": "^0.7.5",
-    "mocha": "^11.1.0"
+    "sodium-universal": "^5.0.1"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org",
