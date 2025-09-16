@@ -18,11 +18,13 @@
   "dependencies": {
     "b4a": "1.6.7",
     "bare-fs": "^4.0.2",
+    "bare-path": "^3.0.0",
     "bare-readline": "1.0.7",
     "bare-tty": "^5.0.2",
     "fs": "npm:bare-node-fs",
+    "path": "npm:bare-node-path",
     "readline": "npm:bare-node-readline",
-    "trac-crypto-api": "github:Trac-Systems/trac-crypto-api",
+    "trac-crypto-api": "^0.0.2",
     "tty": "npm:bare-node-tty"
   },
   "devDependencies": {

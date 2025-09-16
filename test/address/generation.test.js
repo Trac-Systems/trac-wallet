@@ -1,25 +1,13 @@
 import test from 'brittle';
 import PeerWallet from '../../index.js';
-import b4a from 'b4a';
 import tracCryptoApi from 'trac-crypto-api';
-
-const mnemonic1 = tracCryptoApi.mnemonic.generate();
-const mnemonic2 = tracCryptoApi.mnemonic.generate();
-const nonSanitizedMnemonic = '    ' + mnemonic1.toUpperCase() + '    ';
-const networkPrefix = 'test';
-
-// TODO: Implement tests covering wrong mnemonic word count (enforce 24). 
-// Currently trac-crypto-api is not able to enforce this.
-// When this is fixed, implement tests here
-
-const decode = tracCryptoApi.address.decode;
-const isValid = (address, prefix, pubKey) => {
-    const isString = typeof address === 'string';
-    const isNotEmpty = address.length > 0;
-    const isValidPrefix = address.startsWith(prefix);
-    const isValidPubKey = b4a.equals(decode(address), pubKey);
-    return isString && isNotEmpty && isValidPrefix && isValidPubKey;
-}
+import {
+    mnemonic1,
+    mnemonic2,
+    nonSanitizedMnemonic,
+    networkPrefix,
+    isAddressValid
+} from '../fixtures/fixtures.js';
 
 test('PeerWallet: address is a valid string and not empty for all cases', async t => {
     const walletAllOpts = new PeerWallet({ mnemonic: mnemonic1, networkPrefix }); // all options set
@@ -43,10 +31,10 @@ test('PeerWallet: address is a valid string and not empty for all cases', async 
     await walletNoOpts.generateKeyPair();
 
     // All options can generate an address
-    t.ok(isValid(walletAllOpts.address, networkPrefix, walletAllOpts.publicKey));
-    t.ok(isValid(walletNoPrefix.address, 'trac', walletNoPrefix.publicKey));
-    t.ok(isValid(walletNoMnemonic.address, 'trac', walletNoMnemonic.publicKey));
-    t.ok(isValid(walletNoOpts.address, 'trac', walletNoOpts.publicKey));
+    t.ok(isAddressValid(walletAllOpts.address, networkPrefix, walletAllOpts.publicKey));
+    t.ok(isAddressValid(walletNoPrefix.address, 'trac', walletNoPrefix.publicKey));
+    t.ok(isAddressValid(walletNoMnemonic.address, 'trac', walletNoMnemonic.publicKey));
+    t.ok(isAddressValid(walletNoOpts.address, 'trac', walletNoOpts.publicKey));
 });
 
 test('PeerWallet: address is deterministic for same mnemonic and prefix', async t => {
@@ -72,7 +60,7 @@ test('PeerWallet: generates same addresses with sanitized or unsanitized mnemoni
     await wallet1.ready;
     await wallet2.ready;
 
-    t.ok(isValid(wallet1.address, networkPrefix, wallet1.publicKey));
+    t.ok(isAddressValid(wallet1.address, networkPrefix, wallet1.publicKey));
     t.is(wallet1.address, wallet2.address);
 });
 
