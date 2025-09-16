@@ -4,17 +4,22 @@ import b4a from 'b4a';
 import { join } from 'path';
 import fs from 'fs';
 import tracCryptoApi from 'trac-crypto-api';
+import {
+    mnemonic1,
+    networkPrefix
+} from '../fixtures/fixtures.js';
 
-const mnemonic = tracCryptoApi.mnemonic.generate();
+const mnemonic = mnemonic1;
 const password = b4a.from('testpassword');
 const filePath = join('./test-keyfile.json');
 
 test('PeerWallet: export and import preserves keypair', async t => {
-    const wallet = new PeerWallet({ mnemonic });
+    const derivationPath = "m/44'/0'/0'/0'/0'";
+    const wallet = new PeerWallet({ mnemonic, derivationPath, networkPrefix });
     await wallet.ready;
     wallet.exportToFile(filePath, password);
 
-    const importedWallet = new PeerWallet();
+    const importedWallet = new PeerWallet({ networkPrefix });
     await importedWallet.ready;
     importedWallet.importFromFile(filePath, password);
 
@@ -22,6 +27,8 @@ test('PeerWallet: export and import preserves keypair', async t => {
     t.ok(b4a.equals(wallet.secretKey, importedWallet.secretKey));
     t.is(wallet.mnemonic, importedWallet.mnemonic);
     t.is(wallet.address, importedWallet.address);
+    t.is(wallet.derivationPath, derivationPath);
+    t.is(wallet.derivationPath, importedWallet.derivationPath);
     fs.unlinkSync(filePath);
 });
 
