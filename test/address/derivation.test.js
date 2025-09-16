@@ -27,8 +27,6 @@ test('Derivation: generates different addresses for different paths', async t =>
         const w = new PeerWallet({ networkPrefix, mnemonic, derivationPath: path });
         await w.ready;
         addresses.push(w.address);
-        console.log(`Path: ${path} => Address: ${w.address}`);
-        console.log(`Path: ${path} => PATH: ${w.derivationPath}`);
     }
 
     t.is(new Set(addresses).size, addresses.length, 'All derived addresses are unique');

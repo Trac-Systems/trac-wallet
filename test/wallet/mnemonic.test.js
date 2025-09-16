@@ -7,7 +7,6 @@ const validMnemonic = 'virus shy bid eyebrow remove cool jungle seed elegant bal
 test('PeerWallet: valid mnemonic returns true for validation', async t => {
 	const wallet = new PeerWallet();
 	const mnemonic = api.mnemonic.generate();
-	console.log(">>>>>>>>>> GENERATED MNEMONIC = ", mnemonic);
 	t.ok(wallet.sanitizeMnemonic(mnemonic) === mnemonic);
 	t.ok(wallet.sanitizeMnemonic(validMnemonic) === validMnemonic);
 });
@@ -15,11 +14,6 @@ test('PeerWallet: valid mnemonic returns true for validation', async t => {
 test('PeerWallet: create keypair with valid mnemonic', async t => {
 	const wallet = new PeerWallet({ mnemonic: validMnemonic });
 	await wallet.ready;
-
-    console.log(">>>>>>>>>> PubKey", wallet.publicKey.toString('hex'));
-    console.log(">>>>>>>>>> PrivKey", wallet.secretKey.toString('hex'));
-    console.log(">>>>>>>>>> Address", wallet.address);
-
 	t.ok(wallet.publicKey);
 	t.ok(wallet.secretKey);
 	t.ok(wallet.address);
