@@ -3,9 +3,12 @@ import PeerWallet from '../../index.js';
 import b4a from 'b4a';
 import tracCryptoApi from 'trac-crypto-api';
 import sodium from 'sodium-universal';
+import { 
+    mnemonic1,
+    mnemonic2,
+    derivationPath
+ } from '../fixtures/fixtures.js';
 
-const mnemonic1 = tracCryptoApi.mnemonic.generate();
-const mnemonic2 = tracCryptoApi.mnemonic.generate();
 const message = b4a.from('hello world');
 
 function randomBytes(length) {
@@ -15,7 +18,7 @@ function randomBytes(length) {
 }
 
 test('PeerWallet: sign produces a valid signature', async t => {
-    const wallet = new PeerWallet({ mnemonic: mnemonic1 });
+    const wallet = new PeerWallet({ mnemonic: mnemonic1, derivationPath });
     await wallet.ready;
     const signature = wallet.sign(message);
     const verify = wallet.verify(signature, message, wallet.publicKey);
@@ -25,7 +28,7 @@ test('PeerWallet: sign produces a valid signature', async t => {
 });
 
 test('PeerWallet: can sign and verify with static methods', async t => {
-    const wallet = new PeerWallet({ mnemonic: mnemonic1 });
+    const wallet = new PeerWallet({ mnemonic: mnemonic1, derivationPath });
     await wallet.ready;
     const signature = PeerWallet.sign(message, wallet.secretKey);
     const verify = PeerWallet.verify(signature, message, wallet.publicKey);
@@ -33,7 +36,7 @@ test('PeerWallet: can sign and verify with static methods', async t => {
 });
 
 test('PeerWallet: can sign and verify signature from another wallet', async t => {
-    const wallet1 = new PeerWallet({ mnemonic: mnemonic1 });
+    const wallet1 = new PeerWallet({ mnemonic: mnemonic1, derivationPath });
     const wallet2 = new PeerWallet({ mnemonic: mnemonic2 });
     await wallet1.ready;
     await wallet2.ready;
@@ -43,7 +46,7 @@ test('PeerWallet: can sign and verify signature from another wallet', async t =>
 });
 
 test('PeerWallet: can sign with external private key', async t => {
-    const wallet1 = new PeerWallet({ mnemonic: mnemonic1 });
+    const wallet1 = new PeerWallet({ mnemonic: mnemonic1, derivationPath });
     const wallet2 = new PeerWallet({ mnemonic: mnemonic2 });
     await wallet1.ready;
     await wallet2.ready;
@@ -53,7 +56,7 @@ test('PeerWallet: can sign with external private key', async t => {
 });
 
 test('PeerWallet: verify returns false for tampered message', async t => {
-    const wallet = new PeerWallet({ mnemonic: mnemonic1 });
+    const wallet = new PeerWallet({ mnemonic: mnemonic1, derivationPath });
     await wallet.ready;
     const signature = wallet.sign(message);
     const tampered = b4a.from('hello world!');
@@ -61,7 +64,7 @@ test('PeerWallet: verify returns false for tampered message', async t => {
 });
 
 test('PeerWallet: verify returns false for tampered signature', async t => {
-    const wallet = new PeerWallet({ mnemonic: mnemonic1 });
+    const wallet = new PeerWallet({ mnemonic: mnemonic1, derivationPath });
     await wallet.ready;
     const signature = wallet.sign(message);
     const tamperedSig = randomBytes(signature.length);
@@ -69,8 +72,8 @@ test('PeerWallet: verify returns false for tampered signature', async t => {
 });
 
 test('PeerWallet: verify returns false for wrong public key', async t => {
-    const wallet1 = new PeerWallet({ mnemonic: mnemonic1 });
-    const wallet2 = new PeerWallet({ mnemonic: mnemonic2 });
+    const wallet1 = new PeerWallet({ mnemonic: mnemonic1, derivationPath });
+    const wallet2 = new PeerWallet({ mnemonic: mnemonic2, derivationPath });
     await wallet1.ready;
     await wallet2.ready;
     const signature = wallet1.sign(message);
