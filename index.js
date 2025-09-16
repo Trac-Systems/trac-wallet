@@ -147,6 +147,23 @@ class Wallet {
     }
 
     /**
+     * Sanitizes and validates a derivation path string.
+     * Accepts BIP32/BIP44 style paths like m/44'/0'/0'/0'/0'.
+     * All segments must be hardened (i.e., end with a prime symbol ').
+     * Returns null if invalid.
+     * @param {string} derivationPath - The derivation path to sanitize.
+     * @returns {string|null} The sanitized derivation path, or null if invalid.
+     */
+    // TODO: Replace this implementation when a similar function is implemented in Trac Crypto Api
+    sanitizeDerivationPath(derivationPath) {
+        if (typeof derivationPath !== 'string') return null;
+        const trimmed = derivationPath.trim();
+        const bip32HardenedRegex = /^m(\/[0-9]+'?)+$/;
+        if (!bip32HardenedRegex.test(trimmed)) return null;
+        return trimmed;
+    }
+
+    /**
      * Sanitizes and validates a public key.
      * @param {string} publicKey - The public key in hex format.
      * @returns {Buffer} The sanitized public key as a Buffer.
@@ -303,7 +320,7 @@ class Wallet {
         decrypted.publicKey = this.sanitizePublicKey(decrypted.publicKey);
         decrypted.secretKey = this.sanitizeSecretKey(decrypted.secretKey);
         decrypted.mnemonic = this.sanitizeMnemonic(decrypted.mnemonic);
-        // TODO: Also sanitize derivation path
+        decrypted.derivationPath = this.sanitizeDerivationPath(decrypted.derivationPath);
 
         // Cleanup sensitive data from memory
         tracCryptoApi.utils.memzero(encrypted.salt);
@@ -473,7 +490,7 @@ class PeerWallet extends Wallet {
                         }
                         await this.generateKeyPair(mnemonic);
                         await this.exportToFile(filePath, mnemonic);
-                        console.log("DEBUG: Key pair generated and stored in", filePath);
+                        console.log("Key pair generated and stored in", filePath);
                         break;
                     case 'import':
                         await this.importFromFile(response.value);
