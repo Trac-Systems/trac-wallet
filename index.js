@@ -367,6 +367,66 @@ class Wallet {
             derivationPath: null
         };
     }
+
+    //------------------- Trac Crypto API exposure functions -------------------//
+    // The functions below are implemented here for convenience, so users of the Wallet class
+    // can access the API functions without needing to import trac-crypto-api separately.
+
+    /**
+     * Decodes a Bech32m encoded address string into its raw form.
+     * @param {string} address - The Bech32m encoded address to decode.
+     * @returns {Buffer} The decoded address as a Buffer.
+     */
+    static decodeBech32m(address) {
+        return tracCryptoApi.address.decode(address);
+    }
+
+    /**
+     * Safely decodes a Bech32m encoded address string. Returns null on error.
+     * @param {string} address - The Bech32m encoded address to decode.
+     * @returns {Buffer|null} The decoded address as a Buffer, or null if decoding fails.
+     */
+    static decodeBech32mSafe(address) {
+        try {
+            return tracCryptoApi.address.decode(address);
+        } catch (e) {
+            console.error('Error decoding address:', e.message);
+            return null;
+        }
+    }
+
+    /**
+     * Generates a cryptographically secure random nonce.
+     * @returns {Buffer} The generated nonce as a Buffer.
+     */
+    static generateNonce() {
+        return tracCryptoApi.nonce.generate();
+    }
+
+    /**
+     * Encodes a public key Buffer into a Bech32m address string.
+     * @param {string} hrp - The human-readable part (prefix) for the address.
+     * @param {Buffer} publicKey - The public key to encode.
+     * @returns {string} The Bech32m encoded address string.
+     */
+    static encodeBech32m(hrp, publicKey) {
+        return tracCryptoApi.address.encode(hrp, publicKey);
+    }
+
+    /**
+     * Safely encodes a public key Buffer into a Bech32m address string. Returns null on error.
+     * @param {string} hrp - The human-readable part (prefix) for the address.
+     * @param {Buffer} publicKey - The public key to encode.
+     * @returns {string|null} The Bech32m encoded address string, or null if encoding fails.
+     */
+    static encodeBech32mSafe(hrp, publicKey) {
+        try {
+            return tracCryptoApi.address.encode(hrp, publicKey);
+        } catch (e) {
+            console.error('Error encoding address:', e.message);
+            return null;
+        }
+    }
 }
 
 class PeerWallet extends Wallet {
