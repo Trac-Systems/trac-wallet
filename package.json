@@ -29,7 +29,6 @@
   },
   "devDependencies": {
     "brittle": "^3.18.0",
-    "micro-key-producer": "^0.7.5",
     "sodium-universal": "^5.0.1"
   },
   "publishConfig": {
