@@ -472,12 +472,8 @@ class PeerWallet extends Wallet {
         }
         try {
             if (fs.existsSync(filePath)) {
-                // TODO: Fix. There is no unencrypted keyfile anymore
-                const keyPair = JSON.parse(fs.readFileSync(filePath));
-                this.keyPair = {
-                    publicKey: keyPair.publicKey,
-                    secretKey: keyPair.secretKey
-                }
+                // TODO: Allow a password input
+                await this.importFromFile(filePath);
             } else {
                 console.log("Key file was not found. How do you wish to proceed?");
                 const response = await this.#setupKeypairInteractiveMode(readline_instance);
