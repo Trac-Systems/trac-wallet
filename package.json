@@ -24,7 +24,7 @@
     "fs": "npm:bare-node-fs",
     "path": "npm:bare-node-path",
     "readline": "npm:bare-node-readline",
-    "trac-crypto-api": "^0.0.2",
+    "trac-crypto-api": "^0.0.3",
     "tty": "npm:bare-node-tty"
   },
   "devDependencies": {
