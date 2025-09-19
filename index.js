@@ -480,15 +480,17 @@ class PeerWallet extends Wallet {
                 const response = await this.#setupKeypairInteractiveMode(readline_instance);
                 switch (response.type) {
                     case 'keypair':
+                        // TODO: Change this implementation to allow recovery from secret key ONLY!
                         this.keyPair = response.value;
                         break;
                     case 'mnemonic':
+                        // TODO: Change this implementation to allow for derivation path input
                         let mnemonic = response.value;
                         if (mnemonic === null) {
-                            mnemonic = this.generateMnemonic();
+                            mnemonic = tracCryptoApi.mnemonic.generate();
                             console.log("This is your mnemonic:\n", mnemonic, "\nPlease back it up in a safe location")
                         }
-                        await this.generateKeyPair(mnemonic);
+                        await this.generateKeyPair(mnemonic, this.derivationPath);
                         await this.exportToFile(filePath, mnemonic);
                         console.log("Key pair generated and stored in", filePath);
                         break;
@@ -525,9 +527,9 @@ class PeerWallet extends Wallet {
             this.#readlineInstance = rl;
             let response;
             let choice = '';
-            console.log("\n[1]. Generate new mnemonic phrase\n",
-                "[2]. Restore keypair from 24-word phrase\n",
-                "[3]. Input a keypair manually\n",
+            console.log("\n[1]. Generate new keypair\n",
+                "[2]. Restore keypair from 24-word mnemonic\n",
+                "[3]. Input a secret key manually\n",
                 "[4]. Import keypair from file\n",
                 "Your choice(1/ 2/ 3/ 4/):"
             );
