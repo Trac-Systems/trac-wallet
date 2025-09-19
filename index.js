@@ -202,16 +202,18 @@ class Wallet {
     /**
      * Exports the key pair to an encrypted JSON file.
      * @param {string} filePath - Path to save the file.
-     * @param {Buffer} password - Buffer used for encryption.
+     * @param {Buffer | null} [password] - Buffer used for encryption.
      * @returns {Promise<void>}
      * @throws {Error} If required parameters are missing or invalid.
      */
-    exportToFile(filePath, password) {
+    exportToFile(filePath, password = null) {
         if (!filePath) {
             throw new Error('File path is required');
         }
 
-        if (!b4a.isBuffer(password) || password.length === 0) {
+        // An empty password is allowed (password length = 0)
+        if (!password) password = b4a.alloc(0);
+        if (!b4a.isBuffer(password)) {
             throw new Error('Password must be a buffer');
         }
 
@@ -254,17 +256,18 @@ class Wallet {
     /**
      * Imports a key pair from an encrypted JSON file.
      * @param {string} filePath - Path to the file.
-     * @param {Buffer} password - Buffer used for decryption.
+     * @param {Buffer | null} [password] - Buffer used for decryption.
      * @returns {Promise<void>}
      * @throws {Error} If required parameters are missing or invalid.
      */
-    importFromFile(filePath, password) {
+    importFromFile(filePath, password = null) {
         if (!filePath) {
             throw new Error('File path is required');
         }
 
-        if (!b4a.isBuffer(password) || password.length === 0) {
-            throw new Error('Password must be a buffer with length greater than 0');
+        if (!password) password = b4a.alloc(0);
+        if (!b4a.isBuffer(password)) {
+            throw new Error('Password must be a buffer');
         }
 
         const fileData = this.#readFile(filePath);
@@ -491,7 +494,8 @@ class PeerWallet extends Wallet {
                             console.log("This is your mnemonic:\n", mnemonic, "\nPlease back it up in a safe location")
                         }
                         await this.generateKeyPair(mnemonic, this.derivationPath);
-                        await this.exportToFile(filePath, mnemonic);
+                        // TODO: Change this to allow password input
+                        await this.exportToFile(filePath, b4a.alloc(0));
                         console.log("Key pair generated and stored in", filePath);
                         break;
                     case 'import':
