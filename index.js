@@ -528,7 +528,7 @@ class PeerWallet extends Wallet {
             let response;
             let choice = '';
             console.log("\n[1]. Generate new keypair\n",
-                "[2]. Restore keypair from 24-word mnemonic\n",
+                "[2]. Restore keypair from 12 or 24-word mnemonic\n",
                 "[3]. Input a secret key manually\n",
                 "[4]. Import keypair from file\n",
                 "Your choice(1/ 2/ 3/ 4/):"
@@ -560,9 +560,14 @@ class PeerWallet extends Wallet {
                             await this.#sleep(1000);
                         }
                         rl.off('line', mnem);
+                        const sanitized = this.sanitizeMnemonic(mnemonicInput.trim());
+                        if (!sanitized) {
+                            console.log("Invalid mnemonic. Please check your 12 or 24 words and try again.");
+                            return this.#setupKeypairInteractiveMode(rl);
+                        }   
                         response = {
                             type: 'mnemonic',
-                            value: this.sanitizeMnemonic(mnemonicInput.trim())
+                            value: sanitized
                         }
                         break;
                     case '3':
