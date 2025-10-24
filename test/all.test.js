@@ -5,6 +5,7 @@ async function runTests() {
     await import('./address/address.test.js');
     await import('./wallet/sign_verify.test.js');
     await import('./wallet/export_import.test.js');
+    await import('./wallet/api_exposed.test.js');
     test.resume();
 }
 
