@@ -552,9 +552,9 @@ class PeerWallet extends Wallet {
             let choice = '';
             console.log("\n[1]. Generate new keypair\n",
                 "[2]. Restore keypair from 12 or 24-word mnemonic\n",
-                "[3]. Input a secret key manually\n",
-                "[4]. Import keypair from file\n",
-                "Your choice(1/ 2/ 3/ 4/):"
+                // "[3]. Input a secret key manually\n",
+                "[3]. Import keypair from file\n",
+                "Your choice(1/ 2/ 3/):"
             );
             let choiceFunc = async function (input) {
                 choice = input;
@@ -593,36 +593,38 @@ class PeerWallet extends Wallet {
                             value: sanitized
                         }
                         break;
+                    // We are commenting out manual secret key input for now because after implementation of the derivation path it stopped working. 
+                    // Observation: It will be restored when the problem is fixed.
+                    // case '3':
+                    //     let publicKey = '';
+                    //     let pubkey = async function (input) {
+                    //         publicKey = input;
+                    //     }
+                    //     console.log("Enter your public key:");
+                    //     rl.on('line', pubkey);
+                    //     while ('' === publicKey) {
+                    //         await this.#sleep(1000);
+                    //     }
+                    //     rl.off('line', pubkey);
+                    //     console.log("Enter your secret key:");
+                    //     let secretKey = '';
+                    //     let seckey = async function (input) {
+                    //         secretKey = input;
+                    //     };
+                    //     rl.on('line', seckey);
+                    //     while ('' === secretKey) {
+                    //         await this.#sleep(1000);
+                    //     }
+                    //     rl.off('line', seckey);
+                    //     response = {
+                    //         type: 'keypair',
+                    //         value: {
+                    //             publicKey: publicKey.trim(),
+                    //             secretKey: secretKey.trim()
+                    //         }
+                    //     }
+                    //     break;
                     case '3':
-                        let publicKey = '';
-                        let pubkey = async function (input) {
-                            publicKey = input;
-                        }
-                        console.log("Enter your public key:");
-                        rl.on('line', pubkey);
-                        while ('' === publicKey) {
-                            await this.#sleep(1000);
-                        }
-                        rl.off('line', pubkey);
-                        console.log("Enter your secret key:");
-                        let secretKey = '';
-                        let seckey = async function (input) {
-                            secretKey = input;
-                        };
-                        rl.on('line', seckey);
-                        while ('' === secretKey) {
-                            await this.#sleep(1000);
-                        }
-                        rl.off('line', seckey);
-                        response = {
-                            type: 'keypair',
-                            value: {
-                                publicKey: publicKey.trim(),
-                                secretKey: secretKey.trim()
-                            }
-                        }
-                        break;
-                    case '4':
                         console.log("Enter the path to the keypair file:");
                         let filePath = '';
                         let fpath = async function (input) {
