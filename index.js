@@ -8,7 +8,6 @@ import tracCryptoApi from 'trac-crypto-api';
 
 class Wallet {
     #networkPrefix;
-    #derivationPath;
     #keyPair;
     ready;
 
@@ -25,8 +24,8 @@ class Wallet {
     // Always use await Wallet.ready before trying to access the keypair.
     constructor(options = {}) {
         this.#networkPrefix = options.networkPrefix || TRAC_NETWORK_MSB_MAINNET_PREFIX;
-        this.#derivationPath = options.derivationPath || null;
-        this.ready = this.#initKeyPair(options.mnemonic || null, this.#derivationPath);
+        const derivationPath = options.derivationPath || null;
+        this.ready = this.#initKeyPair(options.mnemonic || null, derivationPath);
     }
 
     /**
@@ -501,18 +500,21 @@ class PeerWallet extends Wallet {
                 console.log("Key file was not found. How do you wish to proceed?");
                 const response = await this.#setupKeypairInteractiveMode(readline_instance);
                 switch (response.type) {
-                    case 'keypair':
-                        // TODO: Change this implementation to allow recovery from secret key ONLY!
-                        this.keyPair = response.value;
-                        break;
+                    // Disabled because when derivation path was implemented in trac-crypto-api it stopped working.
+                    // TODO: Re-enable when the derivation path issue is resolved.
+                    // case 'keypair':
+                    //     // TODO: Change this implementation to allow recovery from secret key ONLY!
+                    //     this.keyPair = response.value;
+                    //     break;
                     case 'mnemonic':
-                        // TODO: Change this implementation to allow for derivation path input
-                        let mnemonic = response.value;
-                        if (mnemonic === null) {
+                        let mnemonic = response.value.mnemonic;
+                        let derivationPath = response.value.derivationPath;
+                        if (!(!!mnemonic)) {
                             mnemonic = tracCryptoApi.mnemonic.generate();
                             console.log("This is your mnemonic:\n", mnemonic, "\nPlease back it up in a safe location")
                         }
-                        await this.generateKeyPair(mnemonic, this.derivationPath);
+                        console.log("Derivation path used:", derivationPath);
+                        await this.generateKeyPair(mnemonic, derivationPath);
                         // TODO: Change this to allow password input
                         await this.exportToFile(filePath, b4a.alloc(0));
                         console.log("Key pair generated and stored in", filePath);
@@ -552,8 +554,8 @@ class PeerWallet extends Wallet {
             let choice = '';
             console.log("\n[1]. Generate new keypair\n",
                 "[2]. Restore keypair from 12 or 24-word mnemonic\n",
-                // "[3]. Input a secret key manually\n",
                 "[3]. Import keypair from file\n",
+                // "[4]. Input a secret key manually\n", // Temporarily disabled until the derivation path issue is resolved
                 "Your choice(1/ 2/ 3/):"
             );
             let choiceFunc = async function (input) {
@@ -564,15 +566,41 @@ class PeerWallet extends Wallet {
                 await this.#sleep(1000);
             }
             rl.off('line', choiceFunc);
+
+            // Prompt for derivation path
+            const promptDerivationPath = async () => {
+                const defaultDerivationPath = "m/918'/0'/0'/0'";
+                const displayedMessage = `Enter your derivation path (leave blank for default: ${defaultDerivationPath}):`;
+
+                let dpath = async function (input) {
+                    derivationPathInput = input;
+                };
+
+                console.log(displayedMessage);
+                const derivationPathInput = await new Promise(resolve => rl.once('line', resolve));
+
+                let sanitizedPath = this.sanitizeDerivationPath(derivationPathInput.trim());
+                if (!sanitizedPath) {
+                    sanitizedPath = defaultDerivationPath;
+                }
+                return sanitizedPath;
+            }
+
+
             try {
                 switch (choice) {
                     case '1':
+                        const derivationPath = await promptDerivationPath();
                         response = {
                             type: 'mnemonic',
-                            value: null
+                            value: {
+                                mnemonic: null,
+                                derivationPath: derivationPath
+                            }
                         }
                         break;
                     case '2':
+                        // Prompt for mnemonic
                         console.log("Enter your mnemonic phrase:");
                         let mnemonicInput = '';
                         let mnem = async function (input) {
@@ -583,14 +611,21 @@ class PeerWallet extends Wallet {
                             await this.#sleep(1000);
                         }
                         rl.off('line', mnem);
-                        const sanitized = this.sanitizeMnemonic(mnemonicInput.trim());
-                        if (!sanitized) {
+                        const sanitizedMnemonic = this.sanitizeMnemonic(mnemonicInput.trim());
+                        if (!sanitizedMnemonic) {
                             console.log("Invalid mnemonic. Please check your 12 or 24 words and try again.");
                             return this.#setupKeypairInteractiveMode(rl);
                         }
+
+                        // Prompt for derivation path
+                        const sanitizedPath = await promptDerivationPath();
+
                         response = {
                             type: 'mnemonic',
-                            value: sanitized
+                            value: {
+                                mnemonic: sanitizedMnemonic,
+                                derivationPath: sanitizedPath
+                            }
                         }
                         break;
                     // We are commenting out manual secret key input for now because after implementation of the derivation path it stopped working. 
