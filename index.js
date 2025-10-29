@@ -485,146 +485,290 @@ class PeerWallet extends Wallet {
     /**
      * Initializes the keypair from a file or interactively if not found.
      * @param {string} filePath - Path to the keypair file.
-     * @param {readline.Interface|null} [readline_instance] - Optional readline instance for interactive mode.
+     * @param {readline.Interface|null} [readline_instance] - Optional readline instance for interactive mode. Will use the default instance if not provided.
      * @returns {Promise<void>}
      */
     async initKeyPair(filePath, readline_instance = null) {
         if (!filePath) {
             throw new Error("File path is required");
         }
+
+        if (!readline_instance) {
+            if (!this.#readlineInstance) {
+                this.#readlineInstance = readline.createInterface({
+                    input: new tty.ReadStream(0),
+                    output: new tty.WriteStream(1)
+                });
+            }
+            readline_instance = this.#readlineInstance;
+        } else {
+            this.#readlineInstance = readline_instance;
+        }
+
         try {
             if (fs.existsSync(filePath)) {
-                // TODO: Allow a password input
-                await this.importFromFile(filePath);
-            } else {
-                console.log("Key file was not found. How do you wish to proceed?");
-                const response = await this.#setupKeypairInteractiveMode(readline_instance);
-                switch (response.type) {
-                    // Disabled because when derivation path was implemented in trac-crypto-api it stopped working.
-                    // TODO: Re-enable when the derivation path issue is resolved.
-                    // case 'keypair':
-                    //     // TODO: Change this implementation to allow recovery from secret key ONLY!
-                    //     this.keyPair = response.value;
-                    //     break;
-                    case 'mnemonic':
-                        let mnemonic = response.value.mnemonic;
-                        let derivationPath = response.value.derivationPath;
-                        if (!(!!mnemonic)) {
-                            mnemonic = tracCryptoApi.mnemonic.generate();
-                            console.log("This is your mnemonic:\n", mnemonic, "\nPlease back it up in a safe location")
-                        }
-                        console.log("Derivation path used:", derivationPath);
-                        await this.generateKeyPair(mnemonic, derivationPath);
-                        // TODO: Change this to allow password input
-                        await this.exportToFile(filePath, b4a.alloc(0));
-                        console.log("Key pair generated and stored in", filePath);
-                        break;
-                    case 'import':
-                        await this.importFromFile(response.value);
-                        break;
-                    default:
-                        console.error("Invalid response type from keypair setup interactive menu");
+                await this.#openStorageFileInteractiveMode(filePath, this.#readlineInstance);
+                if (b4a.isBuffer(this.publicKey) && this.publicKey.length === tracCryptoApi.address.PUB_KEY_SIZE) {
+                    console.log("Key file loaded successfully from", filePath);
+                    return; // The keypair was loaded, so we can exit the function
+                }
+                else {
+                    console.log(`Failed to load key file from ${filePath}.`);
                 }
             }
+            else {
+                console.log("Key file not found.");
+            }
+            await this.#promptInteractiveMode(filePath, readline_instance);
         } catch (err) {
             console.error(err);
         }
     }
 
     /**
+     * Interactive setup for opening key storage file.
+     * @param {string} filePath - Path to the keypair file.
+     * @param {readline.Interface} rl - Readline interface for user input.
+     * @private
+     */
+    async #openStorageFileInteractiveMode(filePath, rl) {
+        let attempts = 0;
+        const maxAttempts = 3;
+        let password;
+
+        while (attempts < maxAttempts) {
+            const pwd = await this.#promptForPassword(rl);
+            try {
+                await this.importFromFile(filePath, pwd);
+                break; // Success, exit the loop
+            } catch (err) {
+                console.error("Error importing keyfile:", err.message);
+                attempts++;
+            }
+        }
+        if (password) tracCryptoApi.utils.memzero(password); // Cleanup sensitive data from memory
+        if (!(b4a.isBuffer(this.publicKey) && this.publicKey.length === tracCryptoApi.address.PUB_KEY_SIZE)) {
+            console.error("Could not import keyfile. Maximum password attempts exceeded.");
+        }
+    }
+
+    /**
      * Interactive setup for keypair creation or import.
-     * @param {readline.Interface|null} [readline_instance] - Optional readline instance.
+     * @param {string} filePath - Path to the keypair file.
+     * @param {readline.Interface} rl - Readline interface for user input.
+     * @private
+     */
+    async #promptInteractiveMode(filePath, rl) {
+        console.log("\nHow do you wish to proceed?");
+        const response = await this.#setupKeypairInteractiveMode(rl);
+        let mnemonic, derivationPath, password;
+        try {
+            switch (response.type) {
+                // Disabled because when derivation path was implemented in trac-crypto-api it stopped working.
+                // TODO: Re-enable when the derivation path issue is resolved.
+                // case 'keypair':
+                //     // TODO: Change this implementation to allow recovery from secret key ONLY!
+                //     this.keyPair = response.value;
+                //     break;
+                case 'mnemonic':
+                    mnemonic = response.value.mnemonic;
+                    derivationPath = response.value.derivationPath;
+                    password = response.value.password;
+
+                    if (!(!!mnemonic)) {
+                        mnemonic = tracCryptoApi.mnemonic.generate();
+                        console.log("This is your mnemonic:\n", mnemonic, "\nPlease back it up in a safe location")
+                    }
+                    console.log("Derivation path used:", derivationPath);
+                    await this.generateKeyPair(mnemonic, derivationPath);
+                    await this.exportToFile(filePath, password);
+
+                    console.log("Key pair generated and stored in", filePath);
+                    break;
+                case 'import':
+                    const customFilePath = response.value.filePath;
+                    await this.#openStorageFileInteractiveMode(customFilePath);
+                    break;
+                default:
+                    console.error("Invalid response type from keypair setup interactive menu");
+            }
+        } catch (e) {
+            console.error("Error during keypair setup:", e.message);
+        } finally {
+            // cleanup sensitive values from memory
+            if (password) tracCryptoApi.utils.memzero(password);
+            if (mnemonic) tracCryptoApi.utils.memzero(mnemonic);
+            if (derivationPath) tracCryptoApi.utils.memzero(derivationPath);
+        }
+    };
+
+    /**
+     * Prompts the user for a password to decrypt the keyfile.
+     * @param {readline.Interface} rl - Readline interface for user input.
+     * @returns {Promise<Buffer>} The password as a Buffer.
+     */
+    async #promptForPassword(rl) {
+        // Hidden prompt function for password input
+        const promptHidden = (prompt) => new Promise(resolve => {
+            process.stdout.write(prompt);
+            const stdin = process.stdin;
+            stdin.setRawMode(true);
+            stdin.resume();
+            stdin.setEncoding('utf8');
+            let password = '';
+            stdin.on('data', function (char) {
+                char = char + '';
+                switch (char) {
+                    case '\n':
+                    case '\r':
+                    case '\u0004':
+                        stdin.setRawMode(false);
+                        stdin.pause();
+                        process.stdout.write('\n');
+                        stdin.removeAllListeners('data');
+                        resolve(password);
+                        break;
+                    case '\u0003': // Ctrl+C
+                        process.exit();
+                        break;
+                    case '\u007F': // Backspace
+                        if (password.length > 0) {
+                            password = password.slice(0, -1);
+                        }
+                        break;
+                    default:
+                        password += char;
+                        break;
+                }
+            });
+        });
+
+        let promptFunction = async (prompt) => {
+            // This is a workaround.
+            // In NodeJS environment, we can use the hidden prompt.
+            // However, in Bare environments, the TTY RawMode is supported, but super slow.
+            // Unfortunately, there is currently no effective way to hide user input in Bare
+            // TODO: Find a better way to handle hidden input in Bare environments or wait for performance improvements in TTY.
+            if (typeof process === 'undefined') {
+                console.log(prompt);
+                console.warn("\u001b[33mWARNING: Hidden password input is currently not supported in this environment. Your password will be visible as you type.\u001b[0m");
+                return new Promise(resolve => rl.once('line', resolve));
+            } else {
+                return promptHidden(prompt);
+            }
+        }
+
+        // Prompt for password (optional, empty allowed)
+        const passwordInput = await promptFunction('Enter password (leave blank for none): ');
+        const password = passwordInput ? b4a.from(passwordInput, 'utf8') : b4a.alloc(0);
+        return password;
+    }
+
+    /**
+     * Prompts the user for a derivation path.
+     * @param {readline.Interface} rl - Readline interface for user input.
+     * @returns {Promise<string>} The sanitized derivation path.
+     */
+    async #promptForDerivationPath(rl) {
+        const defaultDerivationPath = "m/918'/0'/0'/0'";
+        const displayedMessage = `Enter your derivation path (leave blank for default: ${defaultDerivationPath}):`;
+
+        console.log(displayedMessage);
+        const derivationPathInput = await new Promise(resolve => rl.once('line', resolve));
+
+        let sanitizedPath = this.sanitizeDerivationPath(derivationPathInput.trim());
+        if (!sanitizedPath) {
+            sanitizedPath = defaultDerivationPath;
+        }
+        return sanitizedPath;
+    }
+
+    /**
+     * Prompts the user for a mnemonic phrase.
+     * @param {readline.Interface} rl - Readline interface for user input.
+     * @returns {Promise<string|null>} The sanitized mnemonic or null if none provided.
+     */
+    async #promptForMnemonic(rl) {
+        console.log("Enter your mnemonic (separate words by space): ");
+        const mnemonicInput = await new Promise(resolve => rl.once('line', resolve));
+
+        let sanitizedMnemonic = this.sanitizeMnemonic(mnemonicInput.trim());
+        if (!sanitizedMnemonic) {
+            console.log("Invalid mnemonic. Please check your 12 or 24 words and try again.");
+            return this.#setupKeypairInteractiveMode(rl); // Restart the interactive prompt
+        }
+        return sanitizedMnemonic;
+    }
+
+    /**
+     * Interactive setup for keypair creation or import.
+     * @param {readline.Interface} [rl] - Optional readline instance.
      * @returns {Promise<Object>} Response object with type and value.
      * @private
      */
-    async #setupKeypairInteractiveMode(readline_instance = null) {
+    async #setupKeypairInteractiveMode(rl) {
         if ((global.Pear !== undefined && global.Pear.config.options.type === 'terminal') || global.Pear === undefined) {
-            let rl;
-            if (readline_instance !== null) {
-                rl = readline_instance;
-            } else {
-                rl = readline.createInterface({
-                    input: new tty.ReadStream(0),
-                    output: new tty.WriteStream(1)
-                });
-            }
+            let choice, response, pwd, derivationPath, mnemonic;
+            const promptMnemonic = this.#promptForMnemonic.bind(this);
+            const promptDerivationPath = this.#promptForDerivationPath.bind(this);
+            const promptPassword = this.#promptForPassword.bind(this);
+            
 
-            this.#readlineInstance = rl;
-            let response;
-            let choice = '';
-            console.log("\n[1]. Generate new keypair\n",
+            console.log("\n",
+                "[1]. Generate new keypair\n",
                 "[2]. Restore keypair from 12 or 24-word mnemonic\n",
                 "[3]. Import keypair from file\n",
                 // "[4]. Input a secret key manually\n", // Temporarily disabled until the derivation path issue is resolved
-                "Your choice(1/ 2/ 3/):"
+                "Your choice(1/ 2/ 3):"
             );
-            let choiceFunc = async function (input) {
-                choice = input;
-            }
-            rl.on('line', choiceFunc);
-            while ('' === choice) {
-                await this.#sleep(1000);
-            }
-            rl.off('line', choiceFunc);
-
-            // Prompt for derivation path
-            const promptDerivationPath = async () => {
-                const defaultDerivationPath = "m/918'/0'/0'/0'";
-                const displayedMessage = `Enter your derivation path (leave blank for default: ${defaultDerivationPath}):`;
-
-                let dpath = async function (input) {
-                    derivationPathInput = input;
-                };
-
-                console.log(displayedMessage);
-                const derivationPathInput = await new Promise(resolve => rl.once('line', resolve));
-
-                let sanitizedPath = this.sanitizeDerivationPath(derivationPathInput.trim());
-                if (!sanitizedPath) {
-                    sanitizedPath = defaultDerivationPath;
-                }
-                return sanitizedPath;
-            }
-
+            choice = await new Promise(resolve => rl.once('line', resolve));
 
             try {
                 switch (choice) {
                     case '1':
-                        const derivationPath = await promptDerivationPath();
+                        derivationPath = await promptDerivationPath(rl);
+                        pwd = await promptPassword(rl);
+
                         response = {
                             type: 'mnemonic',
                             value: {
                                 mnemonic: null,
-                                derivationPath: derivationPath
+                                derivationPath: derivationPath,
+                                password: pwd
                             }
                         }
                         break;
                     case '2':
                         // Prompt for mnemonic
-                        console.log("Enter your mnemonic phrase:");
-                        let mnemonicInput = '';
-                        let mnem = async function (input) {
-                            mnemonicInput = input;
-                        };
-                        rl.on('line', mnem);
-                        while ('' === mnemonicInput) {
-                            await this.#sleep(1000);
-                        }
-                        rl.off('line', mnem);
-                        const sanitizedMnemonic = this.sanitizeMnemonic(mnemonicInput.trim());
-                        if (!sanitizedMnemonic) {
-                            console.log("Invalid mnemonic. Please check your 12 or 24 words and try again.");
-                            return this.#setupKeypairInteractiveMode(rl);
-                        }
+                        // console.log("Enter your mnemonic phrase:");
+                        // let mnemonicInput = '';
+                        // let mnem = async function (input) {
+                        //     mnemonicInput = input;
+                        // };
+                        // rl.on('line', mnem);
+                        // while ('' === mnemonicInput) {
+                        //     await this.#sleep(1000);
+                        // }
+                        // rl.off('line', mnem);
+                        // const sanitizedMnemonic = this.sanitizeMnemonic(mnemonicInput.trim());
+                        // if (!sanitizedMnemonic) {
+                        //     console.log("Invalid mnemonic. Please check your 12 or 24 words and try again.");
+                        //     return this.#setupKeypairInteractiveMode(rl);
+                        // }
+                        mnemonic = await promptMnemonic(rl);
 
                         // Prompt for derivation path
-                        const sanitizedPath = await promptDerivationPath();
+                        derivationPath = await promptDerivationPath(rl);
+
+                        // Prompt for password
+                        pwd = await promptPassword();
 
                         response = {
                             type: 'mnemonic',
                             value: {
-                                mnemonic: sanitizedMnemonic,
-                                derivationPath: sanitizedPath
+                                mnemonic,
+                                derivationPath,
+                                password: pwd
                             }
                         }
                         break;
@@ -672,7 +816,9 @@ class PeerWallet extends Wallet {
                         rl.off('line', fpath);
                         response = {
                             type: 'import',
-                            value: filePath.trim()
+                            value: {
+                                filePath: filePath.trim()
+                            }
                         }
                         break;
                     default:
