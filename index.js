@@ -53,6 +53,10 @@ class Wallet {
         return this.#keyPair.address;
     }
 
+    get mnemonic() {
+        return this.#keyPair.mnemonic;
+    }
+
     /**
      * Gets the derivation path for the wallet.
      * @returns {string|null} The derivation path, or null if not set.
