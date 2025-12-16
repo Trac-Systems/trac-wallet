@@ -31,7 +31,12 @@ class Wallet {
             this.ready = Promise.resolve();
             return;
         }
-        this.ready = this.#initKeyPair(options.mnemonic || null, this.#derivationPath);
+        if (options.__blank) {
+            this.ready = Promise.resolve();
+        }
+        else {
+            this.ready = this.#initKeyPair(options.mnemonic || null, this.#derivationPath);
+        }
     }
 
     /**
@@ -79,7 +84,7 @@ class Wallet {
      * @param {Object} keypair - Keypair for wallet creation.
      * @param {Buffer} keypair.publicKey - The public key buffer.
      * @param {Buffer} keypair.secretKey - The secret key buffer.
-     * @param {String} [networkPrefix] - Optional network prefix for address encoding. Defaults to MSB mainnet.
+     * @param {Object} [networkPrefix] - Optional network prefix for address encoding. Defaults to MSB mainnet.
      * @returns {Wallet} A Wallet instance with the provided key pair.
      * @throws {Error} If the keys are invalid.
      */
@@ -527,16 +532,45 @@ class Wallet {
     }
 }
 
-class PeerWallet extends Wallet {
+class PeerWallet {
     #readlineInstance = null;
-
     /**
      * Creates a new PeerWallet instance.
      * @param {Object} options - Wallet options.
      */
     constructor(options = {}) {
-        super(options);
     }
+
+    static blank() {
+        return new Wallet({ __blank: true });
+    }
+
+    static fromKeyPair(keypair, networkPrefix = TRAC_NETWORK_MSB_MAINNET_PREFIX) {
+        return Wallet.fromKeyPair(keypair, networkPrefix);
+    }
+
+    static async fromMnemonic(mnemonic, derivationPath = null, networkPrefix = TRAC_NETWORK_MSB_MAINNET_PREFIX) {
+        const walletInstanceMnemonic = new Wallet({
+            mnemonic,
+            derivationPath,
+            networkPrefix,
+        });
+        await walletInstanceMnemonic.ready;
+        return walletInstanceMnemonic;
+    }
+
+    static async fromFile(filePath, password = null) {
+        const walletInstance = new Wallet({ __blank: true });
+        await walletInstance.importFromFile(filePath, password);
+        return walletInstance;
+    }
+
+    static async initKeyPair(filePath, readline_instance = null) {
+        const peerWallet = new PeerWallet();
+        await peerWallet.initKeyPair(filePath, readline_instance);
+        return peerWallet;
+    }
+
 
     /**
      * Initializes the keypair from a file or interactively if not found.
@@ -551,30 +585,34 @@ class PeerWallet extends Wallet {
         try {
             if (fs.existsSync(filePath)) {
                 // TODO: Allow a password input
-                await this.importFromFile(filePath);
+                const wallet = new Wallet({ __blank: true });
+                await wallet.importFromFile(filePath, b4a.alloc(0)); // TODO: Allow password input
+                return wallet;
             } else {
                 console.log("Key file was not found. How do you wish to proceed?");
                 const response = await this.#setupKeypairInteractiveMode(readline_instance);
                 switch (response.type) {
                     case 'keypair':
-                        // TODO: Change this implementation to allow recovery from secret key ONLY!
-                        this.keyPair = response.value;
-                        break;
+                        const walletInstanceKeypair = this.fromKeyPair(response.value, response.value.networkPrefix);
+                        await walletInstanceKeypair.exportToFile(filePath, b4a.alloc(0)); // TODO: Allow password input
+                        return walletInstanceKeypair;
                     case 'mnemonic':
-                        // TODO: Change this implementation to allow for derivation path input
-                        let mnemonic = response.value;
+                        let mnemonic = response.value.mnemonic;
+                        const derivationPath = response.value.derivationPath;
+                        const networkPrefix = response.value.networkPrefix;
+
                         if (mnemonic === null) {
                             mnemonic = tracCryptoApi.mnemonic.generate();
                             console.log("This is your mnemonic:\n", mnemonic, "\nPlease back it up in a safe location")
                         }
-                        await this.generateKeyPair(mnemonic, this.derivationPath);
-                        // TODO: Change this to allow password input
-                        await this.exportToFile(filePath, b4a.alloc(0));
+
+                        const walletInstanceMnemonic = await this.fromMnemonic(mnemonic, derivationPath, networkPrefix);
+                        await walletInstanceMnemonic.exportToFile(filePath, b4a.alloc(0)); // TODO: Allow password input
                         console.log("Key pair generated and stored in", filePath);
-                        break;
+                        return walletInstanceMnemonic;
                     case 'import':
-                        await this.importFromFile(response.value);
-                        break;
+                        const walletInstanceImport = await this.fromFile(response.value.filePath, response.value.password);
+                        return walletInstanceImport;
                     default:
                         console.error("Invalid response type from keypair setup interactive menu");
                 }
@@ -607,9 +645,9 @@ class PeerWallet extends Wallet {
             let choice = '';
             console.log("\n[1]. Generate new keypair\n",
                 "[2]. Restore keypair from 12 or 24-word mnemonic\n",
-                // "[3]. Input a secret key manually\n",
                 "[3]. Import keypair from file\n",
-                "Your choice(1/ 2/ 3/):"
+                "[4]. Input a key pair manually\n",
+                "Your choice(1/ 2/ 3/ 4):"
             );
             let choiceFunc = async function (input) {
                 choice = input;
@@ -622,12 +660,18 @@ class PeerWallet extends Wallet {
             try {
                 switch (choice) {
                     case '1':
+                        // TODO: Allow password input to encrypt the keypair file
                         response = {
                             type: 'mnemonic',
-                            value: null
+                            value: {
+                                mnemonic: null,
+                                derivationPath: null,
+                                networkPrefix: TRAC_NETWORK_MSB_MAINNET_PREFIX // TODO: Allow user input for network prefix
+                            }
                         }
                         break;
                     case '2':
+                        // TODO: Allow password input to encrypt the keypair file
                         console.log("Enter your mnemonic phrase:");
                         let mnemonicInput = '';
                         let mnem = async function (input) {
@@ -645,41 +689,15 @@ class PeerWallet extends Wallet {
                         }
                         response = {
                             type: 'mnemonic',
-                            value: sanitized
+                            value: {
+                                mnemonic: sanitized,
+                                derivationPath: null,
+                                networkPrefix: TRAC_NETWORK_MSB_MAINNET_PREFIX // TODO: Allow user input for network prefix
+                            }
                         }
                         break;
-                    // We are commenting out manual secret key input for now because after implementation of the derivation path it stopped working. 
-                    // Observation: It will be restored when the problem is fixed.
-                    // case '3':
-                    //     let publicKey = '';
-                    //     let pubkey = async function (input) {
-                    //         publicKey = input;
-                    //     }
-                    //     console.log("Enter your public key:");
-                    //     rl.on('line', pubkey);
-                    //     while ('' === publicKey) {
-                    //         await this.#sleep(1000);
-                    //     }
-                    //     rl.off('line', pubkey);
-                    //     console.log("Enter your secret key:");
-                    //     let secretKey = '';
-                    //     let seckey = async function (input) {
-                    //         secretKey = input;
-                    //     };
-                    //     rl.on('line', seckey);
-                    //     while ('' === secretKey) {
-                    //         await this.#sleep(1000);
-                    //     }
-                    //     rl.off('line', seckey);
-                    //     response = {
-                    //         type: 'keypair',
-                    //         value: {
-                    //             publicKey: publicKey.trim(),
-                    //             secretKey: secretKey.trim()
-                    //         }
-                    //     }
-                    //     break;
                     case '3':
+                        // TODO: Allow password input to read the keypair file
                         console.log("Enter the path to the keypair file:");
                         let filePath = '';
                         let fpath = async function (input) {
@@ -692,7 +710,23 @@ class PeerWallet extends Wallet {
                         rl.off('line', fpath);
                         response = {
                             type: 'import',
-                            value: filePath.trim()
+                            value: {
+                                filePath: filePath.trim(),
+                                password: b4a.alloc(0) // TODO: Allow password input
+                            }
+                        }
+                        break;
+                    case '4':
+                        let publicKey = await this.#getReadlineInput(rl, "Enter your public key:");
+                        let secretKey = await this.#getReadlineInput(rl, "Enter your secret key:");
+                        let networkPrefix = TRAC_NETWORK_MSB_MAINNET_PREFIX; // TODO: Allow user input for network prefix
+                        response = {
+                            type: 'keypair',
+                            value: {
+                                publicKey,
+                                secretKey,
+                                networkPrefix
+                            }
                         }
                         break;
                     default:
@@ -714,6 +748,20 @@ class PeerWallet extends Wallet {
             type: 'mnemonic',
             value: null
         };
+    }
+
+    async #getReadlineInput(readlineInstance, prompt) {
+        console.log(prompt);
+        let input = '';
+        let pubkey = async function (line) {
+            input = line;
+        }
+        readlineInstance.on('line', pubkey);
+        while ('' === input) {
+            await this.#sleep(1000);
+        }
+        readlineInstance.off('line', pubkey);
+        return input.trim();
     }
 
     /**
