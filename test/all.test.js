@@ -3,9 +3,7 @@ import { default as test } from 'brittle';
 async function runTests() {
     test.pause();
     await import('./address/address.test.js');
-    await import('./wallet/sign_verify.test.js');
-    await import('./wallet/export_import.test.js');
-    await import('./wallet/api_exposed.test.js');
+    await import('./wallet/wallet.test.js');
     test.resume();
 }
 

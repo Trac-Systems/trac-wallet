@@ -15,9 +15,9 @@ class Wallet {
     /**
      * Creates a new Wallet instance.
      * @param {Object} options - Wallet options.
+     * @param {string} [options.networkPrefix] - Network prefix for address encoding.
      * @param {string} [options.mnemonic] - Optional mnemonic phrase for key generation.
      * @param {string} [options.derivationPath] - Optional derivation path for key generation.
-     * @param {string} [options.networkPrefix] - Optional network prefix for address encoding.
      */
     // Disclaimer: Please note that the function #initKeyPair is async. This means that the keypair is not set
     // until the function finishes executing. For most cases, this will be irrelevant, but it can lead to errors
@@ -26,6 +26,11 @@ class Wallet {
     constructor(options = {}) {
         this.#networkPrefix = options.networkPrefix || TRAC_NETWORK_MSB_MAINNET_PREFIX;
         this.#derivationPath = options.derivationPath || null;
+        if (options.__fromKeyPair) {
+            this.#initWalletFromKeypair(options.publicKey, options.secretKey);
+            this.ready = Promise.resolve();
+            return;
+        }
         this.ready = this.#initKeyPair(options.mnemonic || null, this.#derivationPath);
     }
 
@@ -59,6 +64,43 @@ class Wallet {
      */
     get derivationPath() {
         return this.#keyPair.derivationPath;
+    }
+
+    /**
+     * Gets the mnemonic for the wallet.
+     * @returns {string|null} The mnemonic, or null if not set.
+     */
+    get mnemonic() {
+        return this.#keyPair.mnemonic;
+    }
+
+    /**
+     * Creates a Wallet instance from an existing key pair (publicKey, secretKey).
+     * @param {Object} keypair - Keypair for wallet creation.
+     * @param {Buffer} keypair.publicKey - The public key buffer.
+     * @param {Buffer} keypair.secretKey - The secret key buffer.
+     * @param {String} [networkPrefix] - Optional network prefix for address encoding. Defaults to MSB mainnet.
+     * @returns {Wallet} A Wallet instance with the provided key pair.
+     * @throws {Error} If the keys are invalid.
+     */
+    static async fromKeyPair(keypair, networkPrefix = TRAC_NETWORK_MSB_MAINNET_PREFIX) {
+        if (!keypair || typeof keypair !== 'object') {
+            throw new Error('Keypair object is required');
+        }
+        if (!b4a.isBuffer(keypair.publicKey) || keypair.publicKey.length !== tracCryptoApi.address.PUB_KEY_SIZE) {
+            throw new Error('Invalid publicKey buffer');
+        }
+        if (!b4a.isBuffer(keypair.secretKey) || keypair.secretKey.length !== tracCryptoApi.address.PRIV_KEY_SIZE) {
+            throw new Error('Invalid secretKey buffer');
+        }
+        const options = {
+            __fromKeyPair: true,
+            publicKey: keypair.publicKey,
+            secretKey: keypair.secretKey,
+            networkPrefix: networkPrefix
+        }
+        const wallet = new Wallet(options);
+        return wallet;
     }
 
     /**
@@ -340,11 +382,14 @@ class Wallet {
      * @private
      */
     #fillKeypairData(data) {
-        this.#keyPair.publicKey = data.publicKey;
-        this.#keyPair.secretKey = data.secretKey;
-        this.#keyPair.mnemonic = data.mnemonic;
-        this.#keyPair.derivationPath = data.derivationPath;
-        this.#keyPair.address = tracCryptoApi.address.encode(this.#networkPrefix, data.publicKey);
+        const addr = tracCryptoApi.address.encode(this.#networkPrefix, data.publicKey);
+        this.#keyPair = {
+            publicKey: data.publicKey,
+            secretKey: data.secretKey,
+            mnemonic: data.mnemonic,
+            derivationPath: data.derivationPath,
+            address: addr
+        };
     }
 
     /**
@@ -469,6 +514,16 @@ class Wallet {
      */
     static async blake3Safe(message) {
         return tracCryptoApi.hash.blake3Safe(message);
+    }
+
+    #initWalletFromKeypair(publicKey, secretKey) {
+        const data = {
+            publicKey: publicKey,
+            secretKey: secretKey,
+            mnemonic: null,
+            derivationPath: null
+        };
+        this.#fillKeypairData(data);
     }
 }
 
