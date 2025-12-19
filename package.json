@@ -1,6 +1,6 @@
 {
   "name": "trac-wallet",
-  "version": "0.0.43-msb-r2.8",
+  "version": "0.0.43-msb-r2.9",
   "main": "index.js",
   "type": "module",
   "pear": {
@@ -24,7 +24,7 @@
     "fs": "npm:bare-node-fs",
     "path": "npm:bare-node-path",
     "readline": "npm:bare-node-readline",
-    "trac-crypto-api": "0.1.2",
+    "trac-crypto-api": "0.1.3",
     "tty": "npm:bare-node-tty"
   },
   "devDependencies": {
