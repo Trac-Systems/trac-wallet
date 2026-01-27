@@ -1,219 +1,220 @@
-import * as bip39 from 'bip39';
-import sodium from 'sodium-native';
-import * as crypto from 'crypto';
-import fs from 'node:fs';
+/** @typedef {import('pear-interface')} */
+import fs from 'fs';
 import readline from 'readline';
+import tty from 'tty'
+import b4a, { isBuffer } from 'b4a';
+import { TRAC_NETWORK_MSB_MAINNET_PREFIX } from './constants.js';
+import tracCryptoApi from 'trac-crypto-api';
 
-const size = 128; // 12 words. Size equal to 256 is 24 words.
-
-// TODO: Decide if this should continue being an internal-only class or if it should be exported
 class Wallet {
-    #keyPair; // TODO: This needs to be in a secure storage, not in memory. This is just a temporary solution.
-    #isVerifyOnly;
+    #networkPrefix;
+    #derivationPath;
+    #keyPair;
+    ready;
 
     /**
      * Creates a new Wallet instance.
-     * @param {Object} options - An object containing the following properties:
-     * @param {string} options.mnemonic - The mnemonic phrase to use for key generation.
-     * @param {boolean} options.isVerifyOnly - A flag to indicate if the wallet will only be used for verifying signatures. If true, the key pair will not be generated.
+     * @param {Object} options - Wallet options.
+     * @param {string} [options.networkPrefix] - Network prefix for address encoding.
+     * @param {string} [options.mnemonic] - Optional mnemonic phrase for key generation.
+     * @param {string} [options.derivationPath] - Optional derivation path for key generation.
      */
+    // Disclaimer: Please note that the function #initKeyPair is async. This means that the keypair is not set
+    // until the function finishes executing. For most cases, this will be irrelevant, but it can lead to errors
+    // if you try to access the keypair properties before the function has completed.
+    // Always use await Wallet.ready before trying to access the keypair.
     constructor(options = {}) {
-        this.#isVerifyOnly = options.isVerifyOnly || false;
-
-        this.#keyPair = {
-            publicKey: null,
-            secretKey: null
-        };
-
-        if (options.mnemonic && !this.#isVerifyOnly) {
-            this.generateKeyPair(options.mnemonic);
+        this.#networkPrefix = options.networkPrefix || TRAC_NETWORK_MSB_MAINNET_PREFIX;
+        this.#derivationPath = options.derivationPath || null;
+        if (options.__fromKeyPair) {
+            this.#initWalletFromKeypair(options.publicKey, options.secretKey);
+            this.ready = Promise.resolve();
+            return;
         }
+        this.ready = this.#initKeyPair(options.mnemonic || null, this.#derivationPath);
     }
 
     /**
-     * Returns the public key as a hex string.
-     * @returns {string|null} The public key in hex format or null if not set.
+     * Gets the public key as a Buffer.
+     * @returns {Buffer|null} The public key, or null if not set.
      */
     get publicKey() {
-        if (!this.#keyPair.publicKey) {
-            return null;
-        }
-        return this.#keyPair.publicKey.toString('hex');
+        return this.#keyPair.publicKey;
     }
 
     /**
-     * Returns the flag indicating if the wallet is set to verify only mode.
-     * @returns {boolean} True if the wallet is set to verify only, false otherwise.
+     * Gets the secret key as a Buffer.
+     * @returns {Buffer|null} The secret key, or null if not set.
      */
-    get isVerifyOnly() {
-        return this.#isVerifyOnly;
+    get secretKey() {
+        return this.#keyPair.secretKey;
     }
 
     /**
-     * Sets the key pair directly. If the wallet is set to verifyOnly mode, it will return to standard mode
-     * @param {Object} keyPair - An object containing the publicKey and secretKey as hex strings.
-     * @throws Will throw an error if the wallet is set to verify only.
-     * @throws Will throw an error if the key pair is invalid.
+     * Gets the TRAC address for the wallet.
+     * @returns {string|null} The Bech32m encoded address, or null if not set.
      */
-    set keyPair(keyPair) {
-        if (this.#isVerifyOnly) {
-            throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
+    get address() {
+        return this.#keyPair.address;
+    }
+
+    /**
+     * Gets the derivation path for the wallet.
+     * @returns {string|null} The derivation path, or null if not set.
+     */
+    get derivationPath() {
+        return this.#keyPair.derivationPath;
+    }
+
+    /**
+     * Gets the mnemonic for the wallet.
+     * @returns {string|null} The mnemonic, or null if not set.
+     */
+    get mnemonic() {
+        return this.#keyPair.mnemonic;
+    }
+
+    /**
+     * Creates a Wallet instance from an existing key pair (publicKey, secretKey).
+     * @param {Object} keypair - Keypair for wallet creation.
+     * @param {Buffer} keypair.publicKey - The public key buffer.
+     * @param {Buffer} keypair.secretKey - The secret key buffer.
+     * @param {String} [networkPrefix] - Optional network prefix for address encoding. Defaults to MSB mainnet.
+     * @returns {Wallet} A Wallet instance with the provided key pair.
+     * @throws {Error} If the keys are invalid.
+     */
+    static async fromKeyPair(keypair, networkPrefix = TRAC_NETWORK_MSB_MAINNET_PREFIX) {
+        if (!keypair || typeof keypair !== 'object') {
+            throw new Error('Keypair object is required');
         }
-        if (!keyPair || !keyPair.publicKey || !keyPair.secretKey) {
-            throw new Error('Invalid key pair. Please provide a valid object with publicKey and secretKey');
+        if (!b4a.isBuffer(keypair.publicKey) || keypair.publicKey.length !== tracCryptoApi.address.PUB_KEY_SIZE) {
+            throw new Error('Invalid publicKey buffer');
         }
-        this.#keyPair = this.sanitizeKeyPair(keyPair.publicKey, keyPair.secretKey);
+        if (!b4a.isBuffer(keypair.secretKey) || keypair.secretKey.length !== tracCryptoApi.address.PRIV_KEY_SIZE) {
+            throw new Error('Invalid secretKey buffer');
+        }
+        const options = {
+            __fromKeyPair: true,
+            publicKey: keypair.publicKey,
+            secretKey: keypair.secretKey,
+            networkPrefix: networkPrefix
+        }
+        const wallet = new Wallet(options);
+        return wallet;
+    }
+
+    /**
+     * Generates a new key pair and address from a mnemonic.
+     * If no mnemonic is provided, a new one is generated.
+     * @param {string} [mnemonic] - Optional mnemonic phrase.
+     * @returns {Promise<void>}
+     */
+    async generateKeyPair(mnemonic = null, derivationPath = null) {
+        if (!mnemonic) {
+            mnemonic = tracCryptoApi.mnemonic.generate();
+        }
+        await this.#initKeyPair(mnemonic, derivationPath);
+    }
+
+    /**
+     * Signs a message with the provided private key.
+     * @param {Buffer} message - The message to sign.
+     * @param {Buffer} privateKey - The private key for signing.
+     * @returns {Buffer} The signature as a Buffer, or empty Buffer on error.
+     */
+    static sign(message, privateKey) {
+        return tracCryptoApi.sign(message, privateKey);
+    }
+
+    /**
+     * Signs a message using the wallet's stored secret key.
+     * @param {Buffer} message - The message to sign.
+     * @returns {Buffer} The signature as a Buffer, or empty Buffer on error.
+     */
+    sign(message, privateKey = this.#keyPair.secretKey) {
+        if (!privateKey) {
+            console.error('No private key provided');
+            return b4a.alloc(0);
+        }
+        return Wallet.sign(message, privateKey);
     }
 
     /**
      * Verifies a message signature.
-     * @param {string || Buffer} signature - The signature in hex or Buffer format.
-     * @param {string || Buffer} message - The message to verify in string or Buffer.
-     * @param {string || Buffer} publicKey - The public key in hex or Buffer format.
-     * @returns {boolean} True if the signature is valid, false otherwise.
+     * @param {Buffer} signature - The signature to verify.
+     * @param {Buffer} message - The message to verify.
+     * @param {Buffer} publicKey - The public key to verify against.
+     * @returns {boolean} True if valid, false otherwise.
      */
-    verify(signature, message, publicKey) {
-        const signatureBuffer = Buffer.isBuffer(signature) ? signature : Buffer.from(signature, 'hex');
-        const messageBuffer = Buffer.isBuffer(message) ? message : Buffer.from(message);
-        const publicKeyBuffer = Buffer.isBuffer(publicKey) ? publicKey : Buffer.from(publicKey, 'hex');
-        return sodium.crypto_sign_verify_detached(signatureBuffer, messageBuffer, publicKeyBuffer);
+    static verify(signature, message, publicKey) {
+        if (!b4a.isBuffer(signature) || signature.length !== tracCryptoApi.signature.SIZE) {
+            console.error('Invalid signature');
+            return false;
+        }
+
+        if (!b4a.isBuffer(message) || message.length === 0) {
+            console.error('Invalid message');
+            return false;
+        }
+
+        if (!b4a.isBuffer(publicKey) || publicKey.length !== tracCryptoApi.address.PUB_KEY_SIZE) {
+            console.error('Invalid public key');
+            return false;
+        }
+
+        try {
+            return tracCryptoApi.signature.verify(signature, message, publicKey);
+        } catch (e) { console.error(e) }
+        return false;
     }
 
     /**
-     * Generates a new mnemonic phrase.
-     * @returns {string} A new mnemonic phrase.
+     * Verifies a signature using the wallet's public key.
+     * @param {Buffer} signature - The signature to verify.
+     * @param {Buffer} message - The message to verify.
+     * @param {Buffer} publicKey - The public key to verify against. Defaults to stored public key
+     * @returns {boolean} True if valid, false otherwise.
      */
-    generateMnemonic() {
-        return bip39.generateMnemonic(size);
-    }
-
-    /**
-     * Generates a key pair from a mnemonic phrase. If the wallet is set to verifyOnly mode, it will return to standard mode
-     * @param {string} mnemonic - The mnemonic phrase.
-     * @throws Will throw an error if the wallet is set to verify only.
-     * @throws Will throw an error if the mnemonic is invalid.
-     */
-    generateKeyPair(mnemonic) {
-        if (this.#isVerifyOnly) {
-            throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
-        }
-
-        // TODO: Include a warning stating that the previous keys will be deleted if a new mnemonic is provided
-        let safeMnemonic = this.sanitizeMnemonic(mnemonic);
-
-        // TODO: Should we just return an error instead? The user will not be able backup the keys if we do this
-        if (!safeMnemonic) {
-            safeMnemonic = bip39.generateMnemonic(size);
-        }
-
-        const seed = bip39.mnemonicToSeedSync(safeMnemonic);
-
-        const publicKey = Buffer.alloc(sodium.crypto_sign_PUBLICKEYBYTES);
-        const secretKey = Buffer.alloc(sodium.crypto_sign_SECRETKEYBYTES);
-
-        const seed32 = crypto.createHash('sha256').update(seed).digest();
-        const seed32buffer = Buffer.from(seed32);
-
-        sodium.crypto_sign_seed_keypair(publicKey, secretKey, seed32buffer);
-
-        this.#keyPair.publicKey = publicKey;
-        this.#keyPair.secretKey = secretKey;
-    }
-
-    /**
-    * Signs a message with the stored secret key.
-    * @param {string} message - The message to sign.
-    * @param {Buffer} privateKey - The private key to use for signing. If not provided, the stored secret key will be used.
-    * @returns {string} The signature in hex format.
-    * @throws Will throw an error if the wallet is set to verify only.
-    * @throws Will throw an error if the secret key is not set.
-    */
-    sign(message, privateKey = null) {
-        if (this.#isVerifyOnly) {
-            throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
-        }
-
-        if (!this.#keyPair.secretKey && !privateKey) {
-            throw new Error('No key pair found. Please, generate a key pair first');
-        }
-
-        const keyToUse = privateKey || this.#keyPair.secretKey;
-
-        if (!Buffer.isBuffer(keyToUse)) {
-            throw new Error('Private key must be a Buffer');
-        }
-
-        if (keyToUse.length !== sodium.crypto_sign_SECRETKEYBYTES) {
-            throw new Error('Invalid private key length');
-        }
-
-        const messageBuffer = Buffer.isBuffer(message) ? message : Buffer.from(message);
-        const signature = Buffer.alloc(sodium.crypto_sign_BYTES);
-        sodium.crypto_sign_detached(signature, messageBuffer, keyToUse);
-        return signature.toString('hex');
-    }
-
-    /**
-     * Exports the key pair to a JSON file.
-     * @param {string} filePath - The path to the file where the keys will be saved.
-     * @throws Will throw an error if the key pair is not set.
-     */
-    exportToFile(filePath) {
-        if (!this.#keyPair.secretKey) {
-            throw new Error('No key pair found');
-        }
-        const data = {
-            publicKey: this.#keyPair.publicKey.toString('hex'),
-            secretKey: this.#keyPair.secretKey.toString('hex')
-        };
-        fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-    }
-
-    /**
-     * Imports a key pair from a JSON file. If the wallet is set to verifyOnly mode, it will return to standard mode
-     * @param {string} filePath - The path to the file where the keys are saved.
-     * @throws Will throw an error if the wallet is set to verify only.
-     */
-    importFromFile(filePath) {
-        if (this.#isVerifyOnly) {
-            throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
-        }
-        const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-        this.#keyPair = this.sanitizeKeyPair(data.publicKey, data.secretKey);
-        this.#isVerifyOnly = false;
+    verify(signature, message, publicKey = this.#keyPair.publicKey) {
+        return Wallet.verify(signature, message, publicKey);
     }
 
     /**
      * Sanitizes and validates a mnemonic phrase.
-     * @param {string} mnemonic - The mnemonic phrase to sanitize.
-     * @returns {string|null} The sanitized mnemonic or null if the input is invalid.
-     * @throws Will throw an error if the mnemonic is invalid.
+     * @param {string} mnemonic - The mnemonic phrase.
+     * @returns {string|null} The sanitized mnemonic, or null if invalid.
      */
     sanitizeMnemonic(mnemonic) {
-        if (!mnemonic) {
-            return null;
-        }
-        const sanitized = mnemonic.toLowerCase().trim().split(' ').filter(word => word.trim()).join(' ');
+        return tracCryptoApi.mnemonic.sanitize(mnemonic);
+    }
 
-        // Check if all words are valid
-        const words = sanitized.split(' ');
-        if (words.length !== 12 || !bip39.validateMnemonic(sanitized)) {
-            throw new Error('Invalid mnemonic. Please, provide a valid 12-word mnemonic');
-        }
-
-        return sanitized;
+    /**
+     * Sanitizes and validates a derivation path string.
+     * Accepts BIP32/BIP44 style paths like m/44'/0'/0'/0'/0'.
+     * All segments must be hardened (i.e., end with a prime symbol ').
+     * Returns null if invalid.
+     * @param {string} derivationPath - The derivation path to sanitize.
+     * @returns {string|null} The sanitized derivation path, or null if invalid.
+     */
+    // TODO: Replace this implementation when a similar function is implemented in Trac Crypto Api
+    sanitizeDerivationPath(derivationPath) {
+        if (typeof derivationPath !== 'string') return null;
+        const trimmed = derivationPath.trim();
+        const bip32HardenedRegex = /^m(\/[0-9]+'?)+$/;
+        if (!bip32HardenedRegex.test(trimmed)) return null;
+        return trimmed;
     }
 
     /**
      * Sanitizes and validates a public key.
      * @param {string} publicKey - The public key in hex format.
-     * @returns {Buffer} The sanitized public key as a buffer.
-     * @throws Will throw an error if the public key is invalid.
+     * @returns {Buffer} The sanitized public key as a Buffer.
+     * @throws {Error} If the public key is invalid.
      */
     sanitizePublicKey(publicKey) {
         try {
-            const buffer = Buffer.from(publicKey, 'hex');
-            if (buffer.length !== sodium.crypto_sign_PUBLICKEYBYTES) {
+            const buffer = b4a.from(publicKey, 'hex');
+            if (buffer.length !== tracCryptoApi.address.PUB_KEY_SIZE) {
                 throw new Error('Invalid public key length');
             }
             return buffer;
@@ -225,13 +226,13 @@ class Wallet {
     /**
      * Sanitizes and validates a secret key.
      * @param {string} secretKey - The secret key in hex format.
-     * @returns {Buffer} The sanitized secret key as a buffer.
-     * @throws Will throw an error if the secret key is invalid.
+     * @returns {Buffer} The sanitized secret key as a Buffer.
+     * @throws {Error} If the secret key is invalid.
      */
     sanitizeSecretKey(secretKey) {
         try {
-            const buffer = Buffer.from(secretKey, 'hex');
-            if (buffer.length !== sodium.crypto_sign_SECRETKEYBYTES) {
+            const buffer = b4a.from(secretKey, 'hex');
+            if (buffer.length !== tracCryptoApi.address.PRIV_KEY_SIZE) {
                 throw new Error('Invalid secret key length');
             }
             return buffer;
@@ -241,69 +242,338 @@ class Wallet {
     }
 
     /**
-     * Sanitizes and validates a key pair.
-     * @param {string} publicKey - The public key in hex format.
-     * @param {string} secretKey - The secret key in hex format.
-     * @returns {Object} An object containing the sanitized publicKey and secretKey as buffers.
+     * Exports the key pair to an encrypted JSON file.
+     * @param {string} filePath - Path to save the file.
+     * @param {Buffer | null} [password] - Buffer used for encryption.
+     * @returns {Promise<void>}
+     * @throws {Error} If required parameters are missing or invalid.
      */
-    sanitizeKeyPair(publicKey, secretKey) {
-        return {
-            publicKey: this.sanitizePublicKey(publicKey),
-            secretKey: this.sanitizeSecretKey(secretKey)
+    exportToFile(filePath, password = null) {
+        if (!filePath) {
+            throw new Error('File path is required');
+        }
+
+        // An empty password is allowed (password length = 0)
+        if (!password) password = b4a.alloc(0);
+        if (!b4a.isBuffer(password)) {
+            throw new Error('Password must be a buffer');
+        }
+
+        if (!this.#keyPair.secretKey) {
+            throw new Error('No key pair stored');
+        }
+
+        const data = {
+            publicKey: this.#keyPair.publicKey.toString('hex'),
+            secretKey: this.#keyPair.secretKey.toString('hex'),
+            mnemonic: this.#keyPair.mnemonic,
+            derivationPath: this.#keyPair.derivationPath
         };
+
+        const message = JSON.stringify(data, null, 2);
+        const msgBuf = b4a.from(message, 'utf8');
+
+        const encrypted = tracCryptoApi.data.encrypt(msgBuf, password)
+
+        const fileData = JSON.stringify({
+            nonce: encrypted.nonce.toString('hex'),
+            salt: encrypted.salt.toString('hex'),
+            ciphertext: encrypted.ciphertext.toString('hex')
+        });
+
+        try {
+            fs.writeFileSync(filePath, fileData);
+            console.log('Key pair exported to', filePath);
+        } catch (err) {
+            console.error('Error writing to file:', err);
+        }
+        finally {
+            // Cleanup sensitive data from memory
+            tracCryptoApi.utils.memzero(encrypted.nonce);
+            tracCryptoApi.utils.memzero(encrypted.salt);
+            tracCryptoApi.utils.memzero(encrypted.ciphertext);
+        }
+    }
+
+    /**
+     * Imports a key pair from an encrypted JSON file.
+     * @param {string} filePath - Path to the file.
+     * @param {Buffer | null} [password] - Buffer used for decryption.
+     * @returns {Promise<void>}
+     * @throws {Error} If required parameters are missing or invalid.
+     */
+    importFromFile(filePath, password = null) {
+        if (!filePath) {
+            throw new Error('File path is required');
+        }
+
+        if (!password) password = b4a.alloc(0);
+        if (!b4a.isBuffer(password)) {
+            throw new Error('Password must be a buffer');
+        }
+
+        const fileData = this.#readFile(filePath);
+
+        if (!fileData.salt || !fileData.nonce || !fileData.ciphertext) {
+            throw new Error('Could not decrypt keyfile. Data is invalid or corrupted');
+        }
+
+        const decrypted = this.#decryptKeystore(fileData, password);
+
+        if (!isBuffer(decrypted.publicKey) || !isBuffer(decrypted.secretKey)) {
+            throw new Error('Decrypted data does not contain valid keys');
+        }
+
+        this.#fillKeypairData(decrypted);
+    }
+
+    /**
+     * Reads and parses a JSON file from disk.
+     * @param {string} path - Path to the file.
+     * @returns {Promise<Object>} Parsed file data as an object.
+     * @throws {Error} If the file cannot be read or parsed.
+     * @private
+     */
+    #readFile(path) {
+        try {
+            if (!fs.existsSync(path)) {
+                throw new Error(`File ${path} not found`);
+            }
+            return JSON.parse(fs.readFileSync(path, 'utf8'));
+        } catch (err) {
+            throw new Error('Error reading file: ' + err.message);
+        }
+    }
+
+    /**
+     * Decrypts the keystore data using the provided password.
+     * @param {Object} fileData - Encrypted file data containing salt, nonce, and ciphertext (hex strings).
+     * @param {Buffer} password - Buffer used for decryption.
+     * @returns {Object} Decrypted keypair data.
+     * @private
+     */
+    #decryptKeystore(fileData, password) {
+        const encrypted = {
+            salt: b4a.from(fileData.salt, 'hex'),
+            nonce: b4a.from(fileData.nonce, 'hex'),
+            ciphertext: b4a.from(fileData.ciphertext, 'hex')
+        }
+
+        // Convert obtained data to a keypair object
+        const decryptedBuf = tracCryptoApi.data.decrypt(encrypted, password);
+        const decrypted = JSON.parse(decryptedBuf.toString('utf8'));
+        decrypted.publicKey = this.sanitizePublicKey(decrypted.publicKey);
+        decrypted.secretKey = this.sanitizeSecretKey(decrypted.secretKey);
+        decrypted.mnemonic = this.sanitizeMnemonic(decrypted.mnemonic);
+        decrypted.derivationPath = this.sanitizeDerivationPath(decrypted.derivationPath);
+
+        // Cleanup sensitive data from memory
+        tracCryptoApi.utils.memzero(encrypted.salt);
+        tracCryptoApi.utils.memzero(encrypted.nonce);
+        tracCryptoApi.utils.memzero(encrypted.ciphertext);
+
+        return decrypted;
+    }
+
+    /**
+     * Fills the keypair data from the provided object.
+     * @param {Object} data - Keypair data containing sanitized publicKey, secretKey in Buffer format 
+     *                        and mnemonic, derivationPath in string format.
+     * @private
+     */
+    #fillKeypairData(data) {
+        const addr = tracCryptoApi.address.encode(this.#networkPrefix, data.publicKey);
+        this.#keyPair = {
+            publicKey: data.publicKey,
+            secretKey: data.secretKey,
+            mnemonic: data.mnemonic,
+            derivationPath: data.derivationPath,
+            address: addr
+        };
+    }
+
+    /**
+     * Initializes the wallet key pair and address from a mnemonic.
+     * If no mnemonic is provided, all values are set to null.
+     * @param {string|null} mnemonic - Optional mnemonic phrase.
+     * @param {string|null} derivationPath - Optional derivation path.
+     * @returns {Promise<void>}
+     * @private
+     */
+    async #initKeyPair(mnemonic = null, derivationPath = null) {
+        if (mnemonic) {
+            try {
+                // TODO: Currently trac-crypto-api crashes when derivation path is null, so we pass undefined instead.
+                // Once the issue is fixed, we can revert this change.
+                const kp = await tracCryptoApi.address.generate(this.#networkPrefix, mnemonic, derivationPath ?? undefined);
+                if (kp && kp.publicKey && kp.secretKey && kp.mnemonic && kp.address && kp.derivationPath) {
+                    this.#keyPair = {
+                        publicKey: kp.publicKey,
+                        secretKey: kp.secretKey,
+                        mnemonic: kp.mnemonic,
+                        address: kp.address,
+                        derivationPath: kp.derivationPath
+                    };
+                    return;
+                } else {
+                    throw new Error('Invalid keypair generated');
+                }
+            }
+            catch (e) {
+                throw new Error('Error initializing keypair: ' + e.message);
+            }
+        }
+        // If no mnemonic was provided, set all values to null
+        this.#keyPair = {
+            address: null,
+            publicKey: null,
+            secretKey: null,
+            mnemonic: null,
+            derivationPath: null
+        };
+    }
+
+    //------------------- Trac Crypto API exposure functions -------------------//
+    // The functions below are implemented here for convenience, so users of the Wallet class
+    // can access the API functions without needing to import trac-crypto-api separately.
+
+    /**
+     * Encodes a public key Buffer into a Bech32m address string.
+     * @param {string} hrp - The human-readable part (prefix) for the address.
+     * @param {Buffer} publicKey - The public key to encode.
+     * @returns {string} The Bech32m encoded address string.
+     */
+    static encodeBech32m(hrp, publicKey) {
+        return tracCryptoApi.address.encode(hrp, publicKey);
+    }
+
+    /**
+     * Safely encodes a public key Buffer into a Bech32m address string. Returns null on error.
+     * @param {string} hrp - The human-readable part (prefix) for the address.
+     * @param {Buffer} publicKey - The public key to encode.
+     * @returns {string|null} The Bech32m encoded address string, or null if encoding fails.
+     */
+    static encodeBech32mSafe(hrp, publicKey) {
+        try {
+            return tracCryptoApi.address.encode(hrp, publicKey);
+        } catch (e) {
+            console.error('Error encoding address:', e.message);
+            return null;
+        }
+    }
+
+    /**
+     * Decodes a Bech32m encoded address string into its raw form.
+     * @param {string} address - The Bech32m encoded address to decode.
+     * @returns {Buffer} The decoded address as a Buffer.
+     */
+    static decodeBech32m(address) {
+        return tracCryptoApi.address.decode(address);
+    }
+
+    /**
+     * Safely decodes a Bech32m encoded address string. Returns null on error.
+     * @param {string} address - The Bech32m encoded address to decode.
+     * @returns {Buffer|null} The decoded address as a Buffer, or null if decoding fails.
+     */
+    static decodeBech32mSafe(address) {
+        try {
+            return tracCryptoApi.address.decode(address);
+        } catch (e) {
+            console.error('Error decoding address:', e.message);
+            return null;
+        }
+    }
+
+
+
+    /**
+     * Generates a cryptographically secure random nonce.
+     * @returns {Buffer} The generated nonce as a Buffer.
+     */
+    static generateNonce() {
+        return tracCryptoApi.nonce.generate();
+    }
+
+    /**
+     * Computes the Blake3 hash of a message.
+     * @async
+     * @param {Buffer} message - The message to be hashed
+     * @returns {Promise<Buffer>} The Blake3 hash of the message
+     * @throws {Error} If hashing fails.
+     */
+    static async blake3(message) {
+        return tracCryptoApi.hash.blake3(message);
+    }
+
+    /**
+     * Safely computes the Blake3 hash of a message. Returns null on error.
+     * @async
+     * @param {Buffer} message - The message to be hashed
+     * @returns {Promise<Buffer|null>} The Blake3 hash of the message, or null if hashing fails.
+     */
+    static async blake3Safe(message) {
+        return tracCryptoApi.hash.blake3Safe(message);
+    }
+
+    #initWalletFromKeypair(publicKey, secretKey) {
+        const data = {
+            publicKey: publicKey,
+            secretKey: secretKey,
+            mnemonic: null,
+            derivationPath: null
+        };
+        this.#fillKeypairData(data);
     }
 }
 
-// TODO: this wallet needs to be separated into its own repo at some point
 class PeerWallet extends Wallet {
-    #isVerifyOnly;
+    #readlineInstance = null;
 
+    /**
+     * Creates a new PeerWallet instance.
+     * @param {Object} options - Wallet options.
+     */
     constructor(options = {}) {
         super(options);
-        this.#isVerifyOnly = options.isVerifyOnly || false;
     }
 
-    // Imports a keypair from a file or generates a new one if it doesn't exist
-    async initKeyPair(filePath) {
-        // TODO: User shouldn't be allowed to store it in unencrypted form. ASK for a password to encrypt it. ENCRYPT(HASH(PASSWORD,SALT),FILE)/DECRYPT(HASH(PASSWORD,SALT),ENCRYPTED_FILE)?
-        if (this.#isVerifyOnly) {
-            throw new Error('This wallet is set to verify only. Please create a new wallet instance with a valid mnemonic to generate a key pair');
-        }
-
+    /**
+     * Initializes the keypair from a file or interactively if not found.
+     * @param {string} filePath - Path to the keypair file.
+     * @param {readline.Interface|null} [readline_instance] - Optional readline instance for interactive mode.
+     * @returns {Promise<void>}
+     */
+    async initKeyPair(filePath, readline_instance = null) {
         if (!filePath) {
             throw new Error("File path is required");
         }
-
         try {
-            // Check if the key file exists
             if (fs.existsSync(filePath)) {
-                const keyPair = JSON.parse(fs.readFileSync(filePath));
-                this.keyPair = {
-                    publicKey: keyPair.publicKey,
-                    secretKey: keyPair.secretKey
-                }
+                // TODO: Allow a password input
+                await this.importFromFile(filePath);
             } else {
                 console.log("Key file was not found. How do you wish to proceed?");
-                const response = await this.#setupKeypairInteractiveMode();
-
+                const response = await this.#setupKeypairInteractiveMode(readline_instance);
                 switch (response.type) {
                     case 'keypair':
+                        // TODO: Change this implementation to allow recovery from secret key ONLY!
                         this.keyPair = response.value;
                         break;
                     case 'mnemonic':
+                        // TODO: Change this implementation to allow for derivation path input
                         let mnemonic = response.value;
                         if (mnemonic === null) {
-                            mnemonic = this.generateMnemonic();
+                            mnemonic = tracCryptoApi.mnemonic.generate();
                             console.log("This is your mnemonic:\n", mnemonic, "\nPlease back it up in a safe location")
                         }
-
-                        this.generateKeyPair(mnemonic);
-
-                        this.exportToFile(filePath);
-                        console.log("DEBUG: Key pair generated and stored in", filePath);
+                        await this.generateKeyPair(mnemonic, this.derivationPath);
+                        // TODO: Change this to allow password input
+                        await this.exportToFile(filePath, b4a.alloc(0));
+                        console.log("Key pair generated and stored in", filePath);
                         break;
                     case 'import':
-                        this.importFromFile(response.value);
+                        await this.importFromFile(response.value);
                         break;
                     default:
                         console.error("Invalid response type from keypair setup interactive menu");
@@ -314,68 +584,155 @@ class PeerWallet extends Wallet {
         }
     }
 
-    async #setupKeypairInteractiveMode() {
-        const rl = readline.createInterface({
-            input: process.stdin,
-            output: process.stdout
-        });
-
-        const question = (query) => {
-            return new Promise(resolve => {
-                rl.question(query, resolve);
-            });
-        }
-
-        let response;
-        let choice = '';
-        while (!choice.trim()) {
-            choice = await question("[1]. Generate new mnemonic phrase\n" +
-                "[2]. Restore keypair from backed up response phrase\n" +
-                "[3]. Input a keypair manually\n" +
-                "[4]. Import keypair from file\n" +
-                "Your choice(1 / 2/ 3/ 4): "
-            );
-            switch (choice) {
-                case '1':
-                    response = {
-                        type: 'mnemonic',
-                        value: null // Will be generated by the wallet
-                    }
-                    break;
-                case '2':
-                    const mnemonicInput = await question("Enter your mnemonic phrase: ");
-                    response = {
-                        type: 'mnemonic',
-                        value: this.sanitizeMnemonic(mnemonicInput) // This is going to be sanitized by the wallet
-                    }
-                    break;
-                case '3':
-                    const publicKey = await question("Enter your public key: ");
-                    const secretKey = await question("Enter your secret key: ");
-
-                    response = {
-                        type: 'keypair',
-                        value: {
-                            publicKey: publicKey, //This is going to be sanitized by the wallet
-                            secretKey: secretKey //This is  going to be sanitized by the wallet
-                        }
-                    }
-                    break;
-                case '4':
-                    const filePath = await question("Enter the path to the keypair file: ");
-                    response = {
-                        type: 'import',
-                        value: filePath
-                    }
-                    break;
-                default:
-                    console.log("Invalid choice. Please select again");
-                    choice = '';
-                    break;
+    /**
+     * Interactive setup for keypair creation or import.
+     * @param {readline.Interface|null} [readline_instance] - Optional readline instance.
+     * @returns {Promise<Object>} Response object with type and value.
+     * @private
+     */
+    async #setupKeypairInteractiveMode(readline_instance = null) {
+        if ((global.Pear !== undefined && global.Pear.config.options.type === 'terminal') || global.Pear === undefined) {
+            let rl;
+            if (readline_instance !== null) {
+                rl = readline_instance;
+            } else {
+                rl = readline.createInterface({
+                    input: new tty.ReadStream(0),
+                    output: new tty.WriteStream(1)
+                });
             }
+
+            this.#readlineInstance = rl;
+            let response;
+            let choice = '';
+            console.log("\n[1]. Generate new keypair\n",
+                "[2]. Restore keypair from 12 or 24-word mnemonic\n",
+                // "[3]. Input a secret key manually\n",
+                "[3]. Import keypair from file\n",
+                "Your choice(1/ 2/ 3/):"
+            );
+            let choiceFunc = async function (input) {
+                choice = input;
+            }
+            rl.on('line', choiceFunc);
+            while ('' === choice) {
+                await this.#sleep(1000);
+            }
+            rl.off('line', choiceFunc);
+            try {
+                switch (choice) {
+                    case '1':
+                        response = {
+                            type: 'mnemonic',
+                            value: null
+                        }
+                        break;
+                    case '2':
+                        console.log("Enter your mnemonic phrase:");
+                        let mnemonicInput = '';
+                        let mnem = async function (input) {
+                            mnemonicInput = input;
+                        };
+                        rl.on('line', mnem);
+                        while ('' === mnemonicInput) {
+                            await this.#sleep(1000);
+                        }
+                        rl.off('line', mnem);
+                        const sanitized = this.sanitizeMnemonic(mnemonicInput.trim());
+                        if (!sanitized) {
+                            console.log("Invalid mnemonic. Please check your 12 or 24 words and try again.");
+                            return this.#setupKeypairInteractiveMode(rl);
+                        }
+                        response = {
+                            type: 'mnemonic',
+                            value: sanitized
+                        }
+                        break;
+                    // We are commenting out manual secret key input for now because after implementation of the derivation path it stopped working. 
+                    // Observation: It will be restored when the problem is fixed.
+                    // case '3':
+                    //     let publicKey = '';
+                    //     let pubkey = async function (input) {
+                    //         publicKey = input;
+                    //     }
+                    //     console.log("Enter your public key:");
+                    //     rl.on('line', pubkey);
+                    //     while ('' === publicKey) {
+                    //         await this.#sleep(1000);
+                    //     }
+                    //     rl.off('line', pubkey);
+                    //     console.log("Enter your secret key:");
+                    //     let secretKey = '';
+                    //     let seckey = async function (input) {
+                    //         secretKey = input;
+                    //     };
+                    //     rl.on('line', seckey);
+                    //     while ('' === secretKey) {
+                    //         await this.#sleep(1000);
+                    //     }
+                    //     rl.off('line', seckey);
+                    //     response = {
+                    //         type: 'keypair',
+                    //         value: {
+                    //             publicKey: publicKey.trim(),
+                    //             secretKey: secretKey.trim()
+                    //         }
+                    //     }
+                    //     break;
+                    case '3':
+                        console.log("Enter the path to the keypair file:");
+                        let filePath = '';
+                        let fpath = async function (input) {
+                            filePath = input;
+                        };
+                        rl.on('line', fpath);
+                        while ('' === filePath) {
+                            await this.#sleep(1000);
+                        }
+                        rl.off('line', fpath);
+                        response = {
+                            type: 'import',
+                            value: filePath.trim()
+                        }
+                        break;
+                    default:
+                        console.log("Invalid choice. Please select again.");
+                        response = null;
+                        choice = '';
+                        return this.#setupKeypairInteractiveMode(readline_instance);
+                }
+            } catch (e) {
+                console.log("Invalid input. Please try again.");
+                response = null;
+                choice = '';
+                return this.#setupKeypairInteractiveMode(readline_instance);
+            }
+            return response;
         }
-        rl.close();
-        return response;
+        // desktop mode if pear
+        return {
+            type: 'mnemonic',
+            value: null
+        };
+    }
+
+    /**
+     * Closes the readline instance if open.
+     * @returns {Promise<void>}
+     */
+    async close() {
+        if (this.#readlineInstance !== null) {
+            await this.#readlineInstance.close();
+        }
+    }
+
+    /**
+     * Sleeps for the specified milliseconds.
+     * @param {number} ms - Milliseconds to sleep.
+     * @returns {Promise<void>}
+     */
+    async #sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 }
 

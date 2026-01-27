@@ -60,7 +60,7 @@ wallet.exportToFile(filePath);
 To run the tests, use the following command:
 
 ```bash
-npx mocha test.js
+npm run test
 ```
 
 ## License
