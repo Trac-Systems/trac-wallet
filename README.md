@@ -1,4 +1,4 @@
-# ED25519 Key Generator
+# Trac Wallet
 
 This project provides a `Wallet` class that can generate and store ED25519 keys, sign messages, and verify signatures. It also includes functionality to export keys to a JSON file.
 
@@ -62,7 +62,3 @@ To run the tests, use the following command:
 ```bash
 npm run test
 ```
-
-## License
-
-TODO
