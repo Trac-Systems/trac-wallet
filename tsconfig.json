@@ -1,4 +1,9 @@
 {
+  "ts-node": {
+    "esm": true,
+    "experimentalResolver": true,
+    "transpileOnly": true
+  },
   "compilerOptions": {
     "target": "ES2022",
     "module": "NodeNext",

@@ -33,9 +33,7 @@ jobs:
         run: npm ci
       - name: Build package
         run: npm run build
-      - name: Run node tests
-        run: npm run test:node
       - name: Install bare
         run: npm i -g bare
-      - name: Run bare tests
-        run: npm run test:bare
+      - name: Run tests
+        run: npm run test:ci

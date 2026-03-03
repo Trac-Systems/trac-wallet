@@ -30,8 +30,12 @@
     "build": "npm run clean:dist && tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test:prepare": "npm run clean:test && tsc -p tsconfig.test.json",
-    "test:node": "npm run test:prepare && brittle-node -c -t 180000 .test-build/test/all.test.js",
-    "test:bare": "npm run test:prepare && brittle-bare -c -t 180000 .test-build/test/all.test.js",
+    "test:node": "node --loader ts-node/esm test/all.test.ts",
+    "test:watch": "node --watch --loader ts-node/esm test/all.test.ts",
+    "test:node:compiled": "brittle-node -c -t 180000 .test-build/test/all.test.js",
+    "test:bare": "npm run test:prepare && npm run test:bare:compiled",
+    "test:bare:compiled": "brittle-bare -c -t 180000 .test-build/test/all.test.js",
+    "test:ci": "npm run test:prepare && npm run test:node:compiled && npm run test:bare:compiled",
     "test": "npm run test:node",
     "prepack": "npm run build"
   },
@@ -52,9 +56,12 @@
     "tty": "npm:bare-node-tty"
   },
   "devDependencies": {
+    "@types/b4a": "^1.6.5",
+    "@types/brittle": "^3.5.0",
     "@types/node": "^22.13.10",
     "brittle": "^3.18.0",
     "sodium-universal": "^5.0.1",
+    "ts-node": "^10.9.2",
     "typescript": "^5.8.2"
   },
   "publishConfig": {

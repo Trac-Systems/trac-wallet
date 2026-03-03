@@ -1,9 +1,9 @@
 import { default as test } from 'brittle';
 
 async function runTests() {
-  test.pause();
+  (test as any).pause();
   await import('./wallet/verify_sign.test.js');
-  test.resume();
+  (test as any).resume();
 }
 
 await runTests();

@@ -12,6 +12,6 @@ export const isAddressValid = (address: string, prefix: string, pubKey: string) 
     const isString = typeof address === 'string';
     const isNotEmpty = address.length > 0;
     const isValidPrefix = address.startsWith(prefix);
-    const isValidPubKey = b4a.equals(decode(address), pubKey);
+    const isValidPubKey = b4a.equals(decode(address), b4a.from(pubKey, 'hex'));
     return isString && isNotEmpty && isValidPrefix && isValidPubKey;
 }

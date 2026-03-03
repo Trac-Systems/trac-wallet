@@ -1,7 +1,7 @@
-export type Signature = Buffer;
-export type Message = Buffer;
-export type SecretKey = Buffer;
-export type PublicKey = Buffer;
+export type Signature = Uint8Array;
+export type Message = Uint8Array;
+export type SecretKey = Uint8Array;
+export type PublicKey = Uint8Array;
 
 export type KeyPair = {
   secretKey: SecretKey;

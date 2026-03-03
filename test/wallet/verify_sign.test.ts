@@ -1,5 +1,5 @@
 import { default as test } from 'brittle';
-import { WalletProvider } from '../../src/index.js'; // This needs to be like this cause of bare
+import { WalletProvider } from '../../src/index.ts';
 import tracCryptoApi from 'trac-crypto-api';
 import sodium from 'sodium-universal';
 import b4a from 'b4a'
