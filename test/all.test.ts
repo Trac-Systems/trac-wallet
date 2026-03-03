@@ -1,9 +1,11 @@
-import { default as test } from 'brittle';
+import test from 'brittle';
 
 async function runTests() {
-  (test as any).pause();
-  await import('./wallet/verify_sign.test.js');
-  (test as any).resume();
+  const harness = test as any;
+  harness.pause();
+  await import('./wallet/verify_sign.test.ts');
+  await import('./provider/mnemonic.test.ts');
+  harness.resume();
 }
 
 await runTests();

@@ -1,7 +1,6 @@
 import * as tracCryptoApi from 'trac-crypto-api'
 import b4a from 'b4a'
-import type { HDParams, KeyPair, Message, Signature } from './types/wallet.js'
-
+import type { HDParams, IHDWallet, KeyPair, Message, Signature, IWallet } from './types/wallet.js'
 
 /**
  * Sanitizes and validates a derivation path string.
@@ -38,8 +37,7 @@ const sanitizeSecretKey = (secretKey: string) => {
     }
 }
 
-
-class Wallet {
+class Wallet implements IWallet {
     #keyPair: KeyPair
 
     constructor(keypair: KeyPair) {
@@ -73,12 +71,21 @@ class Wallet {
      * @param {Signature} message - The message to verify.
      * @returns {boolean} true if valid, false otherwise.
      */
-    verify(signature: Signature, message: Message) {
+    verify(signature: Signature, message: Message): boolean {
         return tracCryptoApi.signature.verify(signature, message, this.#keyPair.publicKey)
+    }
+
+    /**
+     * Verifies if both wallets are equal
+     * @param {IWallet} other - The wallet to compare with
+     * @returns {boolean} true if valid, false otherwise.
+     */
+    equals(other: IWallet): boolean {
+        return this.address === other.address
     }
 }
 
-class HDWallet extends Wallet {
+class HDWallet extends Wallet implements IHDWallet {
     #hdParams: HDParams
 
     constructor(keypair: KeyPair, hdParams: HDParams) {
@@ -101,7 +108,7 @@ export class WalletProvider {
         this.#networkPrefix = networkPrefix
     }
 
-    async fromMnemonic({ mnemonic, derivationPath }: HDParams): Promise<HDWallet> {
+    async fromMnemonic({ mnemonic, derivationPath }: HDParams): Promise<IHDWallet> {
         const path = sanitizeDerivationPath(derivationPath)
         const options
             = await tracCryptoApi.address.generate(this.#networkPrefix, mnemonic, path)
@@ -110,15 +117,17 @@ export class WalletProvider {
         return new HDWallet(options, { mnemonic, derivationPath: options.derivationPath })
     }
 
-    async fromSecretKey(secretKey: string): Promise<Wallet> {
+    async fromSecretKey(secretKey: string): Promise<IWallet> {
         const convertedSk = sanitizeSecretKey(secretKey)
         const options = tracCryptoApi.address.fromSecretKey(this.#networkPrefix, convertedSk)
 
         return new Wallet(options)
     }
 
-    async generate(seed: string): Promise<HDWallet> {
+    async generate(seed: string): Promise<IHDWallet> {
         const mnemonic = tracCryptoApi.mnemonic.generate(seed)
         return await this.fromMnemonic({ mnemonic })
     }
 }
+
+export type { IWallet, IHDWallet } from './types/wallet.js'
