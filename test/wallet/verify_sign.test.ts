@@ -1,4 +1,4 @@
-import { default as test } from 'brittle';
+import { test } from 'brittle';
 import { WalletProvider } from '../../src/index.ts';
 import tracCryptoApi from 'trac-crypto-api';
 import sodium from 'sodium-universal';
