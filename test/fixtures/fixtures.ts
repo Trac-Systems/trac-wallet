@@ -8,7 +8,7 @@ export const networkPrefix = 'test';
 export const derivationPath = "m/44'/0'/0'/0'/0'"; // standard BIP44 path
 
 const decode = tracCryptoApi.address.decode;
-export const isAddressValid = (address, prefix, pubKey) => {
+export const isAddressValid = (address: string, prefix: string, pubKey: string) => {
     const isString = typeof address === 'string';
     const isNotEmpty = address.length > 0;
     const isValidPrefix = address.startsWith(prefix);

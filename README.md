@@ -17,13 +17,11 @@ npm install
 You can create a new wallet with a randomly generated mnemonic phrase:
 
 ```javascript
-import { Wallet } from './index.js';
+import { WalletProvider } from 'trac-wallet';
 
-const wallet = new Wallet();
-const mnemonic = wallet.generateMnemonic() // creates a randomly generated mnemonic phrase containing 12 words
-wallet.generateKeypair(mnemonic) // Generates a keypair using the provided mnemonic and stores it internally
+const provider = new WalletProvider({ networkPrefix: 'trac' });
+const wallet = await provider.generate('optional-seed');
 
-console.log(mnemonic);
 console.log(wallet.publicKey.toString('hex')); // Prints the public key
 ```
 
@@ -31,7 +29,7 @@ You can also create a wallet with a specific mnemonic phrase:
 
 ```javascript
 const mnemonic = 'session attitude weekend sign collect mobile return vacuum pool afraid wagon client';
-const wallet = new Wallet(mnemonic);
+const wallet = await provider.fromMnemonic({ mnemonic });
 console.log(wallet.publicKey.toString('hex')); // Prints the public key
 ```
 

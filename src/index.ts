@@ -1,12 +1,6 @@
 import * as tracCryptoApi from 'trac-crypto-api'
 import b4a from 'b4a'
-
-type Signature = Buffer
-type Message = Buffer
-type SecretKey = Buffer
-type PulbicKey = Buffer
-type KeyPair = { secretKey: SecretKey, publicKey: PulbicKey, address: string }
-type HDParams = { mnemonic: string, derivationPath?: string }
+import type { HDParams, KeyPair, Message, Signature } from './types/wallet.js'
 
 
 /**
