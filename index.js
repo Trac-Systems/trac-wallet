@@ -6,6 +6,33 @@ import b4a, { isBuffer } from 'b4a';
 import { TRAC_NETWORK_MSB_MAINNET_PREFIX } from './constants.js';
 import tracCryptoApi from 'trac-crypto-api';
 
+export class WalletProvider {
+    #networkPrefix
+    constructor({ networkPrefix }) {
+        this.#networkPrefix = networkPrefix
+    }
+
+    async fromMnemonic({ mnemonic, derivationPath }) {
+        const { address, publicKey, secretKey, mnemonic, derivationPath } 
+            = await tracCryptoApi.address.generate(this.#networkPrefix, mnemonic, derivationPath)
+    }
+
+    async fromSecretKey(secretKey) {
+        
+        const options = {
+            publicKey: keypair.publicKey,
+            secretKey: keypair.secretKey,
+        }
+        return new Wallet(options)
+    }
+
+    async generate(seed) {
+        const mnemonic = tracCryptoApi.mnemonic.generate(seed)
+        const wallet = this.fromMnemonic({ mnemonic })
+        return { wallet, mnemonic }
+    }
+}
+
 class Wallet {
     #networkPrefix;
     #derivationPath;
@@ -23,15 +50,8 @@ class Wallet {
     // until the function finishes executing. For most cases, this will be irrelevant, but it can lead to errors
     // if you try to access the keypair properties before the function has completed.
     // Always use await Wallet.ready before trying to access the keypair.
-    constructor(options = {}) {
-        this.#networkPrefix = options.networkPrefix || TRAC_NETWORK_MSB_MAINNET_PREFIX;
-        this.#derivationPath = options.derivationPath || null;
-        if (options.__fromKeyPair) {
-            this.#initWalletFromKeypair(options.publicKey, options.secretKey);
-            this.ready = Promise.resolve();
-            return;
-        }
-        this.ready = this.#initKeyPair(options.mnemonic || null, this.#derivationPath);
+    constructor({ secretKey, publicKey }) {
+        this.#initWalletFromKeypair(publicKey, secretKey);
     }
 
     /**
@@ -131,12 +151,8 @@ class Wallet {
      * @param {Buffer} message - The message to sign.
      * @returns {Buffer} The signature as a Buffer, or empty Buffer on error.
      */
-    sign(message, privateKey = this.#keyPair.secretKey) {
-        if (!privateKey) {
-            console.error('No private key provided');
-            return b4a.alloc(0);
-        }
-        return Wallet.sign(message, privateKey);
+    sign(message) {
+        return Wallet.sign(message, this.#keyPair.secretKey);
     }
 
     /**
@@ -172,11 +188,10 @@ class Wallet {
      * Verifies a signature using the wallet's public key.
      * @param {Buffer} signature - The signature to verify.
      * @param {Buffer} message - The message to verify.
-     * @param {Buffer} publicKey - The public key to verify against. Defaults to stored public key
      * @returns {boolean} True if valid, false otherwise.
      */
-    verify(signature, message, publicKey = this.#keyPair.publicKey) {
-        return Wallet.verify(signature, message, publicKey);
+    verify(signature, message) {
+        return Wallet.verify(signature, message, this.#keyPair.publicKey);
     }
 
     /**
@@ -381,147 +396,64 @@ class Wallet {
      *                        and mnemonic, derivationPath in string format.
      * @private
      */
-    #fillKeypairData(data) {
-        const addr = tracCryptoApi.address.encode(this.#networkPrefix, data.publicKey);
-        this.#keyPair = {
-            publicKey: data.publicKey,
-            secretKey: data.secretKey,
-            mnemonic: data.mnemonic,
-            derivationPath: data.derivationPath,
-            address: addr
-        };
+    #fillKeypairData({ publicKey, secretKey }) {
+        const address = tracCryptoApi.address.encode(this.#networkPrefix, data.publicKey);
+        this.#keyPair = { publicKey, secretKey, address };
     }
 
-    /**
-     * Initializes the wallet key pair and address from a mnemonic.
-     * If no mnemonic is provided, all values are set to null.
-     * @param {string|null} mnemonic - Optional mnemonic phrase.
-     * @param {string|null} derivationPath - Optional derivation path.
-     * @returns {Promise<void>}
-     * @private
-     */
-    async #initKeyPair(mnemonic = null, derivationPath = null) {
-        if (mnemonic) {
-            try {
-                // TODO: Currently trac-crypto-api crashes when derivation path is null, so we pass undefined instead.
-                // Once the issue is fixed, we can revert this change.
-                const kp = await tracCryptoApi.address.generate(this.#networkPrefix, mnemonic, derivationPath ?? undefined);
-                if (kp && kp.publicKey && kp.secretKey && kp.mnemonic && kp.address && kp.derivationPath) {
-                    this.#keyPair = {
-                        publicKey: kp.publicKey,
-                        secretKey: kp.secretKey,
-                        mnemonic: kp.mnemonic,
-                        address: kp.address,
-                        derivationPath: kp.derivationPath
-                    };
-                    return;
-                } else {
-                    throw new Error('Invalid keypair generated');
-                }
-            }
-            catch (e) {
-                throw new Error('Error initializing keypair: ' + e.message);
-            }
-        }
-        // If no mnemonic was provided, set all values to null
-        this.#keyPair = {
-            address: null,
-            publicKey: null,
-            secretKey: null,
-            mnemonic: null,
-            derivationPath: null
-        };
-    }
-
-    //------------------- Trac Crypto API exposure functions -------------------//
-    // The functions below are implemented here for convenience, so users of the Wallet class
-    // can access the API functions without needing to import trac-crypto-api separately.
-
-    /**
-     * Encodes a public key Buffer into a Bech32m address string.
-     * @param {string} hrp - The human-readable part (prefix) for the address.
-     * @param {Buffer} publicKey - The public key to encode.
-     * @returns {string} The Bech32m encoded address string.
-     */
-    static encodeBech32m(hrp, publicKey) {
-        return tracCryptoApi.address.encode(hrp, publicKey);
-    }
-
-    /**
-     * Safely encodes a public key Buffer into a Bech32m address string. Returns null on error.
-     * @param {string} hrp - The human-readable part (prefix) for the address.
-     * @param {Buffer} publicKey - The public key to encode.
-     * @returns {string|null} The Bech32m encoded address string, or null if encoding fails.
-     */
-    static encodeBech32mSafe(hrp, publicKey) {
-        try {
-            return tracCryptoApi.address.encode(hrp, publicKey);
-        } catch (e) {
-            console.error('Error encoding address:', e.message);
-            return null;
-        }
-    }
-
-    /**
-     * Decodes a Bech32m encoded address string into its raw form.
-     * @param {string} address - The Bech32m encoded address to decode.
-     * @returns {Buffer} The decoded address as a Buffer.
-     */
-    static decodeBech32m(address) {
-        return tracCryptoApi.address.decode(address);
-    }
-
-    /**
-     * Safely decodes a Bech32m encoded address string. Returns null on error.
-     * @param {string} address - The Bech32m encoded address to decode.
-     * @returns {Buffer|null} The decoded address as a Buffer, or null if decoding fails.
-     */
-    static decodeBech32mSafe(address) {
-        try {
-            return tracCryptoApi.address.decode(address);
-        } catch (e) {
-            console.error('Error decoding address:', e.message);
-            return null;
-        }
-    }
-
-
+    // /**
+    //  * Initializes the wallet key pair and address from a mnemonic.
+    //  * If no mnemonic is provided, all values are set to null.
+    //  * @param {string|null} mnemonic - Optional mnemonic phrase.
+    //  * @param {string|null} derivationPath - Optional derivation path.
+    //  * @returns {Promise<void>}
+    //  * @private
+    //  */
+    // async #initKeyPair(mnemonic = null, derivationPath = null) {
+    //     if (mnemonic) {
+    //         try {
+    //             // TODO: Currently trac-crypto-api crashes when derivation path is null, so we pass undefined instead.
+    //             // Once the issue is fixed, we can revert this change.
+    //             const kp = await tracCryptoApi.address.generate(this.#networkPrefix, mnemonic, derivationPath ?? undefined);
+    //             if (kp && kp.publicKey && kp.secretKey && kp.mnemonic && kp.address && kp.derivationPath) {
+    //                 this.#keyPair = {
+    //                     publicKey: kp.publicKey,
+    //                     secretKey: kp.secretKey,
+    //                     mnemonic: kp.mnemonic,
+    //                     address: kp.address,
+    //                     derivationPath: kp.derivationPath
+    //                 };
+    //                 return;
+    //             } else {
+    //                 throw new Error('Invalid keypair generated');
+    //             }
+    //         }
+    //         catch (e) {
+    //             throw new Error('Error initializing keypair: ' + e.message);
+    //         }
+    //     }
+    //     // If no mnemonic was provided, set all values to null
+    //     this.#keyPair = {
+    //         address: null,
+    //         publicKey: null,
+    //         secretKey: null,
+    //         mnemonic: null,
+    //         derivationPath: null
+    //     };
+    // }
 
     /**
      * Generates a cryptographically secure random nonce.
      * @returns {Buffer} The generated nonce as a Buffer.
      */
-    static generateNonce() {
+    generateNonce() {
         return tracCryptoApi.nonce.generate();
-    }
-
-    /**
-     * Computes the Blake3 hash of a message.
-     * @async
-     * @param {Buffer} message - The message to be hashed
-     * @returns {Promise<Buffer>} The Blake3 hash of the message
-     * @throws {Error} If hashing fails.
-     */
-    static async blake3(message) {
-        return tracCryptoApi.hash.blake3(message);
-    }
-
-    /**
-     * Safely computes the Blake3 hash of a message. Returns null on error.
-     * @async
-     * @param {Buffer} message - The message to be hashed
-     * @returns {Promise<Buffer|null>} The Blake3 hash of the message, or null if hashing fails.
-     */
-    static async blake3Safe(message) {
-        return tracCryptoApi.hash.blake3Safe(message);
     }
 
     #initWalletFromKeypair(publicKey, secretKey) {
         const data = {
             publicKey: publicKey,
-            secretKey: secretKey,
-            mnemonic: null,
-            derivationPath: null
+            secretKey: secretKey
         };
         this.#fillKeypairData(data);
     }
