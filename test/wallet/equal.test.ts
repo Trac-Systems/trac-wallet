@@ -23,7 +23,7 @@ test('Wallet: verication of signatures means equality', async (t: any) => {
 
 test('Wallet: same type doesnt mean equality', async (t: any) => {
     const wallet1 = await provider().fromMnemonic({ mnemonic: mnemonic1 });
-    const wallet2 = await provider().fromMnemonic({ mnemonic: mnemonic1 });
+    const wallet2 = await provider().fromMnemonic({ mnemonic: mnemonic2 });
 
     t.ok(!wallet1.equals(wallet2));
 });
