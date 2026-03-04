@@ -21,6 +21,7 @@ export interface IWallet {
   sign(message: Message): Signature;
   verify(signature: Signature, message: Message): boolean;
   equals(wallet: IWallet): boolean;
+  asJson(): string;
 }
 
 export interface IHDWallet extends IWallet {

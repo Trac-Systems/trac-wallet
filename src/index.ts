@@ -37,6 +37,22 @@ const sanitizeSecretKey = (secretKey: string) => {
     }
 }
 
+
+/**
+ * Sanitizes and validates a mnemonic.
+ * @param {string} mnemonic - The mnemonic.
+ * @returns {string} The sanitized mnemonic
+ * @throws {Error} If the mnemonic is invalid.
+ */
+const sanitizeMnemonic = (mnemonic: string) => {    
+    const sanitized = tracCryptoApi.mnemonic.sanitize(mnemonic)
+    if (sanitized === null) {
+        throw new Error('Invalid secret key format. Please provide a valid hex string');
+    }
+
+    return sanitized
+}
+
 class Wallet implements IWallet {
     #keyPair: KeyPair
 
@@ -81,7 +97,21 @@ class Wallet implements IWallet {
      * @returns {boolean} true if valid, false otherwise.
      */
     equals(other: IWallet): boolean {
-        return this.address === other.address
+        return b4a.equals(this.publicKey, other.publicKey)
+    }
+
+    /**
+     * Produces a string (json) representation of the wallet.
+     * @returns {string} the wallet as json
+     */
+    asJson(): string {
+        const toExport = {
+            publicKey: b4a.toString(this.publicKey, 'hex'),
+            secretKey: b4a.toString(this.secretKey, 'hex'),
+            address: this.address
+        };
+
+        return JSON.stringify(toExport, null, 2);
     }
 }
 
@@ -100,6 +130,18 @@ class HDWallet extends Wallet implements IHDWallet {
     get derivationPath() {
         return this.#hdParams.derivationPath;
     }
+
+    asJson(): string {
+        const toExport = {
+            publicKey: b4a.toString(this.publicKey, 'hex'),
+            secretKey: b4a.toString(this.secretKey, 'hex'),
+            address: this.address,
+            mnemonic: this.mnemonic,
+            derivationPath: this.derivationPath
+        };
+
+        return JSON.stringify(toExport, null, 2);
+    }
 }
 
 export class WalletProvider {
@@ -109,12 +151,13 @@ export class WalletProvider {
     }
 
     async fromMnemonic({ mnemonic, derivationPath }: HDParams): Promise<IHDWallet> {
-        const path = sanitizeDerivationPath(derivationPath)
+        const sanitizedDerivationPath = sanitizeDerivationPath(derivationPath)
+        const sanitizedMnemonic = sanitizeMnemonic(mnemonic)
         const options
-            = await tracCryptoApi.address.generate(this.#networkPrefix, mnemonic, path)
+            = await tracCryptoApi.address.generate(this.#networkPrefix, sanitizedMnemonic, sanitizedDerivationPath)
         
         // @ts-ignore (should be removed after the js-docs are corrected on trac-core-api)
-        return new HDWallet(options, { mnemonic, derivationPath: options.derivationPath })
+        return new HDWallet(options, { mnemonic: sanitizedMnemonic, derivationPath: options.derivationPath })
     }
 
     async fromSecretKey(secretKey: string): Promise<IWallet> {
