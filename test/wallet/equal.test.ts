@@ -1,11 +1,11 @@
 import { test } from 'brittle';
 import { WalletProvider } from '../../src/index.ts';
+// @ts-ignore
 import tracCryptoApi from 'trac-crypto-api';
 import b4a from 'b4a'
-import { mnemonic1, nonDefaultDerivationPath, networkPrefix, mnemonic2 } from '../fixtures/fixtures.js';
+import { mnemonic1, nonDefaultDerivationPath, networkPrefix, mnemonic2, secretKey } from '../fixtures/fixtures.js';
 
 const message = b4a.from('hello world');
-
 const provider = () => new WalletProvider({ networkPrefix })
 const anotherNetworkProvider = () => new WalletProvider({ networkPrefix: 'testtrac' })
 
@@ -28,15 +28,13 @@ test('Wallet: same type doesnt mean equality', async (t: any) => {
     t.ok(!wallet1.equals(wallet2));
 });
 
-test('Wallet: prefix doesnt play a role in the signature (or equality)', async (t: any) => {
-    // @ts-ignore
-    const { secretKey } = await tracCryptoApi.address.generate(networkPrefix, mnemonic1, nonDefaultDerivationPath);
+test('Wallet: prefix doesnt play a role in the signature, but changes equality', async (t: any) => {
     const wallet1 = await provider().fromSecretKey(b4a.toString(secretKey, 'hex'));
     const wallet2 = await anotherNetworkProvider().fromSecretKey(b4a.toString(secretKey, 'hex'));
 
     const signature = wallet1.sign(message);
     const verify = wallet2.verify(signature, message);
     t.ok(verify, 'verification works');
-    t.ok(wallet1.equals(wallet2));
-    t.ok(wallet1.address !== wallet2.address);
+    t.ok(!wallet1.equals(wallet2));
+    t.ok(b4a.equals(wallet1.secretKey, wallet2.secretKey));
 });

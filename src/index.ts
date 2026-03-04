@@ -98,7 +98,7 @@ class Wallet implements IWallet {
      * @returns {boolean} true if valid, false otherwise.
      */
     equals(other: IWallet): boolean {
-        return b4a.equals(this.publicKey, other.publicKey)
+        return this.address === other.address
     }
 
     /**
