@@ -38,7 +38,6 @@ const sanitizeSecretKey = (secretKey: string) => {
     }
 }
 
-
 /**
  * Sanitizes and validates a mnemonic.
  * @param {string} mnemonic - The mnemonic.
@@ -56,9 +55,15 @@ const sanitizeMnemonic = (mnemonic: string) => {
 
 class Wallet implements IWallet {
     #keyPair: KeyPair
+    #networkPrefix: string
 
-    constructor(keypair: KeyPair) {
+    constructor(networkPrefix: string, keypair: KeyPair) {
+        this.#networkPrefix = networkPrefix
         this.#keyPair = keypair
+    }
+
+    get networkPrefix() {
+        return this.#networkPrefix;
     }
 
     get publicKey() {
@@ -107,6 +112,7 @@ class Wallet implements IWallet {
      */
     asJson(): string {
         const toExport = {
+            networkPrefix: this.networkPrefix,
             publicKey: b4a.toString(this.publicKey, 'hex'),
             secretKey: b4a.toString(this.secretKey, 'hex'),
             address: this.address
@@ -119,8 +125,8 @@ class Wallet implements IWallet {
 class HDWallet extends Wallet implements IHDWallet {
     #hdParams: HDParams
 
-    constructor(keypair: KeyPair, hdParams: HDParams) {
-        super(keypair)
+    constructor(networkPrefix: string, keypair: KeyPair, hdParams: HDParams) {
+        super(networkPrefix, keypair)
         this.#hdParams = hdParams
     }
 
@@ -134,6 +140,7 @@ class HDWallet extends Wallet implements IHDWallet {
 
     asJson(): string {
         const toExport = {
+            networkPrefix: this.networkPrefix,
             publicKey: b4a.toString(this.publicKey, 'hex'),
             secretKey: b4a.toString(this.secretKey, 'hex'),
             address: this.address,
@@ -158,14 +165,14 @@ export class WalletProvider {
             = await tracCryptoApi.address.generate(this.#networkPrefix, sanitizedMnemonic, sanitizedDerivationPath)
         
         // @ts-ignore (should be removed after the js-docs are corrected on trac-core-api)
-        return new HDWallet(options, { mnemonic: sanitizedMnemonic, derivationPath: options.derivationPath })
+        return new HDWallet(this.#networkPrefix, options, { mnemonic: sanitizedMnemonic, derivationPath: options.derivationPath })
     }
 
     async fromSecretKey(secretKey: string): Promise<IWallet> {
         const convertedSk = sanitizeSecretKey(secretKey)
         const options = tracCryptoApi.address.fromSecretKey(this.#networkPrefix, convertedSk)
 
-        return new Wallet(options)
+        return new Wallet(this.#networkPrefix, options)
     }
 
     async generate(seed: string): Promise<IHDWallet> {

@@ -7,6 +7,7 @@ async function runTests() {
   await import('./wallet/equal.test.ts');
   await import('./provider/mnemonic.test.ts');
   await import('./provider/fromSecretKey.test.ts');
+  await import('./exporter/importExport.test.ts');
   harness.resume();
 }
 

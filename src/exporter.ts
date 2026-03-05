@@ -1,19 +1,23 @@
 /** @typedef {import('pear-interface')} */
 import fs from 'fs';
-import { IWallet } from "./types/wallet.js";
+import { IHDWallet, IWallet } from "./types/wallet.js";
 import b4a from 'b4a';
 import * as tracCryptoApi from 'trac-crypto-api'
 import { WalletProvider } from './index.js';
 
 const toWallet = (params) => {
+    if (!params.networkPrefix) {
+        throw new Error('Imported keystore is incompatible with this wallet version');
+    }
+
     if (params.mnemonic) {
         return new WalletProvider({ networkPrefix: params.networkPrefix })
             .fromMnemonic({ mnemonic: params.mnemonic, derivationPath: params.derivationPath });
     }
 
-    if (params.mnemonic) {
+    if (params.secretKey) {
         return new WalletProvider({ networkPrefix: params.networkPrefix })
-            .fromSecretKey(params.privateKey)
+            .fromSecretKey(params.secretKey)
     }
 
     throw new Error('Decrypted data does not contain valid keys');
@@ -27,10 +31,6 @@ const validate = (filePath: string, password: Buffer | Uint8Array) => {
     // An empty password is allowed (password length = 0)
     if (!b4a.isBuffer(password)) {
         throw new Error('Password must be a buffer');
-    }
-
-    if (!fs.existsSync(filePath)) {
-        throw new Error(`File ${filePath} not found`);
     }
 }
 
@@ -69,6 +69,10 @@ const decryptKeystore = (fileData: string, password: Buffer | Uint8Array) => {
 export const exportWallet = (wallet: IWallet, filePath: string, password: Buffer | Uint8Array = b4a.alloc(0)) => {
     validate(filePath, password)
 
+    if (fs.existsSync(filePath)) {
+        throw new Error(`File ${filePath} already exists`);
+    }
+
     const msgBuf = b4a.from(wallet.asJson(), 'utf8');
     const encrypted = tracCryptoApi.data.encrypt(msgBuf, password)
 
@@ -95,8 +99,12 @@ export const exportWallet = (wallet: IWallet, filePath: string, password: Buffer
  * @returns {Promise<void>}
  * @throws {Error} If required parameters are missing or invalid.
  */
-export const importFromFile = async (filePath: string, password: Buffer | Uint8Array = b4a.alloc(0)): Promise<IWallet> => {
+export const importFromFile = async (filePath: string, password: Buffer | Uint8Array = b4a.alloc(0)): Promise<IWallet | IHDWallet> => {
     validate(filePath, password)
+
+    if (!fs.existsSync(filePath)) {
+        throw new Error(`File ${filePath} not found`);
+    }
 
     const fileData = fs.readFileSync(filePath, 'utf8')
     const decrypted = decryptKeystore(fileData, password);
