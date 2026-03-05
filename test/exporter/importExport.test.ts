@@ -9,8 +9,11 @@ import { exportWallet, importFromFile } from '../../src/exporter.ts';
 const mnemonic = mnemonic1;
 const password = b4a.from('testpassword');
 const filePath = join('./test-keyfile.json');
+const cleanup = () => fs.existsSync(filePath) && fs.unlinkSync(filePath)
 
 test('PeerWallet: export and import preserves keypair', async t => {
+    t.teardown(cleanup);
+
     const derivationPath = "m/44'/0'/0'/0'/0'";
     const wallet = await new WalletProvider({ networkPrefix }).fromMnemonic({ mnemonic, derivationPath });
     exportWallet(wallet, filePath, password);
@@ -22,10 +25,11 @@ test('PeerWallet: export and import preserves keypair', async t => {
     t.is(wallet.address, importedWallet.address);
     t.is(wallet.derivationPath, derivationPath);
     t.is(wallet.derivationPath, importedWallet.derivationPath);
-    fs.unlinkSync(filePath);
 });
 
 test('PeerWallet: password can be empty', async t => {
+    t.teardown(cleanup);
+
     const derivationPath = "m/44'/0'/0'/0'/0'";
     const wallet = await new WalletProvider({ networkPrefix }).fromMnemonic({ mnemonic, derivationPath });
     const emptyPassword = b4a.alloc(0);
@@ -39,32 +43,32 @@ test('PeerWallet: password can be empty', async t => {
     t.is(wallet.address, importedWallet.address);
     t.is(wallet.derivationPath, derivationPath);
     t.is(wallet.derivationPath, importedWallet.derivationPath);
-    fs.unlinkSync(filePath);
 });
 
 test('PeerWallet: import throws if file does not exist', async t => {
     const filename = 'nonexistent.json';
     try {
-        importFromFile(filename, password);
+        await importFromFile(filename, password);
         t.fail('Expected error not thrown');
     } catch (error: any) {
-        t.is(error.message, `Error reading file: File ${filename} not found`);
+        t.is(error.message, `File ${filename} not found`);
     }
 });
 
 test('PeerWallet: import throws if password is wrong', async t => {
+    t.teardown(cleanup);
+
     const derivationPath = "m/44'/0'/0'/0'/0'";
     const wallet = await new WalletProvider({ networkPrefix }).fromMnemonic({ mnemonic, derivationPath });
     exportWallet(wallet, filePath, password);
 
     const wrongPassword = b4a.from('wrongpassword');
     try {
-        importFromFile(filePath, wrongPassword);
+        await importFromFile(filePath, wrongPassword);
         t.fail('Expected error not thrown');
     } catch (error: any) {
         t.is(error.message, 'Failed to decrypt data. Invalid key or corrupted data.');
     }
-    fs.unlinkSync(filePath);
 });
 
 test('PeerWallet: export throws if password is not a buffer', async t => {
@@ -78,14 +82,15 @@ test('PeerWallet: export throws if password is not a buffer', async t => {
 });
 
 test('PeerWallet: import throws if password is not a buffer', async t => {
+    t.teardown(cleanup);
+
     const derivationPath = "m/44'/0'/0'/0'/0'";
     const wallet = await new WalletProvider({ networkPrefix }).fromMnemonic({ mnemonic, derivationPath });
     exportWallet(wallet, filePath, password);
     try {
-        importFromFile(filePath, 'notabuffer' as any as Buffer);
+        await importFromFile(filePath, 'notabuffer' as any as Buffer);
         t.fail('Expected error not thrown');
     } catch (error: any) {
         t.is(error.message, 'Password must be a buffer');
     }
-    fs.unlinkSync(filePath);
 });
