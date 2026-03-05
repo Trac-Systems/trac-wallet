@@ -4,7 +4,7 @@ import b4a from 'b4a';
 import tracCryptoApi from 'trac-crypto-api';
 import { networkPrefix, nonDefaultDerivationPath } from '../fixtures/fixtures.ts';
 
-const provider = () => new WalletProvider({ networkPrefix })
+const provider = () => new WalletProvider({ addressPrefix: networkPrefix })
 const asHex = (value: Buffer | Uint8Array): string => b4a.toString(value, 'hex')
 
 async function randomKeyPair() {

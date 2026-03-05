@@ -13,7 +13,7 @@ const randomBytes = (length: number) => {
     return rand;
 }
 
-const provider = () => new WalletProvider({ networkPrefix })
+const provider = () => new WalletProvider({ addressPrefix: networkPrefix })
 
 test('Wallet: sign produces a valid signature', async (t: any) => {
     const wallet = await provider().fromMnemonic({ mnemonic: mnemonic1, derivationPath: nonDefaultDerivationPath });

@@ -6,17 +6,19 @@ import * as tracCryptoApi from 'trac-crypto-api'
 import { WalletProvider } from './wallet.ts';
 
 const toWallet = (params) => {
-    if (!params.networkPrefix) {
+    const addressPrefix = params.addressPrefix ?? params.networkPrefix;
+
+    if (!addressPrefix) {
         throw new Error('Imported keystore is incompatible with this wallet version');
     }
 
     if (params.mnemonic) {
-        return new WalletProvider({ networkPrefix: params.networkPrefix })
+        return new WalletProvider({ addressPrefix })
             .fromMnemonic({ mnemonic: params.mnemonic, derivationPath: params.derivationPath });
     }
 
     if (params.secretKey) {
-        return new WalletProvider({ networkPrefix: params.networkPrefix })
+        return new WalletProvider({ addressPrefix })
             .fromSecretKey(params.secretKey)
     }
 

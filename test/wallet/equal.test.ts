@@ -6,8 +6,8 @@ import b4a from 'b4a'
 import { mnemonic1, nonDefaultDerivationPath, networkPrefix, mnemonic2, secretKey } from '../fixtures/fixtures.ts';
 
 const message = b4a.from('hello world');
-const provider = () => new WalletProvider({ networkPrefix })
-const anotherNetworkProvider = () => new WalletProvider({ networkPrefix: 'testtrac' })
+const provider = () => new WalletProvider({ addressPrefix: networkPrefix })
+const anotherNetworkProvider = () => new WalletProvider({ addressPrefix: 'testtrac' })
 
 test('Wallet: verication of signatures means equality', async (t: any) => {
     // @ts-ignore

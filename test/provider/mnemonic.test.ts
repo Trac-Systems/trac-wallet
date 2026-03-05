@@ -2,7 +2,7 @@ import { test } from 'brittle';
 import { WalletProvider } from '../../src/index.ts';
 import { networkPrefix, defaultDerivationPath, nonDefaultDerivationPath, mnemonic11Words, invalidDerivationPath } from '../fixtures/fixtures.ts';
 
-const provider = () => new WalletProvider({ networkPrefix })
+const provider = () => new WalletProvider({ addressPrefix: networkPrefix })
 
 const validMnemonic = 'virus shy bid eyebrow remove cool jungle seed elegant ball alarm asset reform champion hat scan act remember thumb cloth talent invite unable trouble';
 

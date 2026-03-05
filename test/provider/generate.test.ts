@@ -3,7 +3,7 @@ import { WalletProvider } from '../../src/index.ts';
 import type { IHDWallet } from '../../src/index.ts';
 import { networkPrefix } from '../fixtures/fixtures.ts';
 
-const provider = () => new WalletProvider({ networkPrefix })
+const provider = () => new WalletProvider({ addressPrefix: networkPrefix })
 
 test('WalletProvider#generate: creates a wallet', async t => {
     const wallet = await provider().generate() as IHDWallet;

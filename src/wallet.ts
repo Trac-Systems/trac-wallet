@@ -38,15 +38,15 @@ const sanitizeMnemonic = (mnemonic: string) => {
 
 class Wallet implements IWallet {
     #keyPair: KeyPair
-    #networkPrefix: string
+    #addressPrefix: string
 
-    constructor(networkPrefix: string, keypair: KeyPair) {
-        this.#networkPrefix = networkPrefix
+    constructor(addressPrefix: string, keypair: KeyPair) {
+        this.#addressPrefix = addressPrefix
         this.#keyPair = keypair
     }
 
-    get networkPrefix() {
-        return this.#networkPrefix;
+    get addressPrefix() {
+        return this.#addressPrefix;
     }
 
     get publicKey() {
@@ -95,7 +95,7 @@ class Wallet implements IWallet {
      */
     asJson(): string {
         const toExport = {
-            networkPrefix: this.networkPrefix,
+            addressPrefix: this.addressPrefix,
             publicKey: b4a.toString(this.publicKey, 'hex'),
             secretKey: b4a.toString(this.secretKey, 'hex'),
             address: this.address
@@ -108,8 +108,8 @@ class Wallet implements IWallet {
 class HDWallet extends Wallet implements IHDWallet {
     #hdParams: HDParams
 
-    constructor(networkPrefix: string, keypair: KeyPair, hdParams: HDParams) {
-        super(networkPrefix, keypair)
+    constructor(addressPrefix: string, keypair: KeyPair, hdParams: HDParams) {
+        super(addressPrefix, keypair)
         this.#hdParams = hdParams
     }
 
@@ -123,7 +123,7 @@ class HDWallet extends Wallet implements IHDWallet {
 
     asJson(): string {
         const toExport = {
-            networkPrefix: this.networkPrefix,
+            addressPrefix: this.addressPrefix,
             publicKey: b4a.toString(this.publicKey, 'hex'),
             secretKey: b4a.toString(this.secretKey, 'hex'),
             address: this.address,
@@ -136,25 +136,25 @@ class HDWallet extends Wallet implements IHDWallet {
 }
 
 export class WalletProvider {
-    #networkPrefix
-    constructor({ networkPrefix }: { networkPrefix: string }) {
-        this.#networkPrefix = networkPrefix
+    #addressPrefix
+    constructor({ addressPrefix }: { addressPrefix: string }) {
+        this.#addressPrefix = addressPrefix
     }
 
     async fromMnemonic({ mnemonic, derivationPath = tracCryptoApi.address.DEFAULT_DERIVATION_PATH }: HDParams): Promise<IHDWallet> {
         const sanitizedMnemonic = sanitizeMnemonic(mnemonic)
         const options
-            = await tracCryptoApi.address.generate(this.#networkPrefix, sanitizedMnemonic, derivationPath) // This sanitizes the derivation path
+            = await tracCryptoApi.address.generate(this.#addressPrefix, sanitizedMnemonic, derivationPath) // This sanitizes the derivation path
 
         // @ts-ignore (should be removed after the js-docs are corrected on trac-core-api)
-        return new HDWallet(this.#networkPrefix, options, { mnemonic: sanitizedMnemonic, derivationPath: options.derivationPath })
+        return new HDWallet(this.#addressPrefix, options, { mnemonic: sanitizedMnemonic, derivationPath: options.derivationPath })
     }
 
     async fromSecretKey(secretKey: string): Promise<IWallet> {
         const convertedSk = sanitizeSecretKey(secretKey)
-        const options = tracCryptoApi.address.fromSecretKey(this.#networkPrefix, convertedSk)
+        const options = tracCryptoApi.address.fromSecretKey(this.#addressPrefix, convertedSk)
 
-        return new Wallet(this.#networkPrefix, options)
+        return new Wallet(this.#addressPrefix, options)
     }
 
     async generate(seed?: string): Promise<IHDWallet> {
