@@ -3,12 +3,6 @@ import * as tracCryptoApi from 'trac-crypto-api'
 import b4a from 'b4a'
 import type { HDParams, IHDWallet, KeyPair, Message, Signature, IWallet } from './types/index.ts'
 
-/**
- * Sanitizes and validates a secret key.
- * @param {string} secretKey - The secret key in hex format.
- * @returns {Buffer} The sanitized secret key as a Buffer.
- * @throws {Error} If the secret key is invalid.
- */
 const sanitizeSecretKey = (secretKey: string) => {
     try {
         const buffer = b4a.from(secretKey, 'hex');
@@ -21,12 +15,6 @@ const sanitizeSecretKey = (secretKey: string) => {
     }
 }
 
-/**
- * Sanitizes and validates a mnemonic.
- * @param {string} mnemonic - The mnemonic.
- * @returns {string} The sanitized mnemonic
- * @throws {Error} If the mnemonic is invalid.
- */
 const sanitizeMnemonic = (mnemonic: string) => {
     const sanitized = tracCryptoApi.mnemonic.sanitize(mnemonic)
     if (sanitized === null) {
@@ -137,10 +125,22 @@ class HDWallet extends Wallet implements IHDWallet {
 
 export class WalletProvider {
     #addressPrefix
+
+    /**
+     * Creates a wallet provider bound to an address prefix. 
+     * @param {{ addressPrefix: string }} options - Provider options. 
+     * @param {string} options.addressPrefix - Address HRP prefix (for example `trac` or `tractest`).
+     */
     constructor({ addressPrefix }: { addressPrefix: string }) {
         this.#addressPrefix = addressPrefix
     }
 
+    /**
+     * Creates an HD wallet from a mnemonic and optional derivation path.
+     * @param {HDParams} params - Mnemonic and derivation path.
+     * @returns {Promise<IHDWallet>} The generated HD wallet.
+     * @throws {Error} If mnemonic or derivation path are invalid. Bubbles up other crypto-related errors.
+     */
     async fromMnemonic({ mnemonic, derivationPath = tracCryptoApi.address.DEFAULT_DERIVATION_PATH }: HDParams): Promise<IHDWallet> {
         const sanitizedMnemonic = sanitizeMnemonic(mnemonic)
         const options
@@ -150,6 +150,12 @@ export class WalletProvider {
         return new HDWallet(this.#addressPrefix, options, { mnemonic: sanitizedMnemonic, derivationPath: options.derivationPath })
     }
 
+    /**
+     * Creates a wallet from a hex-encoded secret key.
+     * @param {string} secretKey - Secret key as a hex string.
+     * @returns {Promise<IWallet>} The wallet derived from the secret key.
+     * @throws {Error} If the secret key format or length are invalid. Bubbles up other crypto-related errors.
+     */
     async fromSecretKey(secretKey: string): Promise<IWallet> {
         const convertedSk = sanitizeSecretKey(secretKey)
         const options = tracCryptoApi.address.fromSecretKey(this.#addressPrefix, convertedSk)
@@ -157,9 +163,13 @@ export class WalletProvider {
         return new Wallet(this.#addressPrefix, options)
     }
 
+    /**
+     * Generates a new HD wallet using an optional deterministic seed.
+     * @param {string} [seed] - Optional seed for deterministic mnemonic generation.
+     * @returns {Promise<IHDWallet>} The generated HD wallet.
+     */
     async generate(seed?: string): Promise<IHDWallet> {
         const mnemonic = tracCryptoApi.mnemonic.generate(seed)
         return await this.fromMnemonic({ mnemonic })
     }
 }
-

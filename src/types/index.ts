@@ -14,6 +14,9 @@ export type HDParams = {
   derivationPath?: string;
 };
 
+/**
+ * Basic wallet interface for signing, verification and serialization. Created from a secret key.
+ */
 export interface IWallet {
   readonly publicKey: PublicKey;
   readonly secretKey: SecretKey;
@@ -24,6 +27,9 @@ export interface IWallet {
   asJson(): string;
 }
 
+/**
+ * Hierarchical deterministic wallet interface. Created from a mnemonic.
+ */
 export interface IHDWallet extends IWallet {
   readonly mnemonic: string;
   readonly derivationPath?: string;

@@ -1,6 +1,6 @@
 # Trac Wallet
 
-This project provides a `Wallet` class that can generate and store ED25519 keys, sign messages, and verify signatures. It also includes functionality to export keys to a JSON file.
+This project provides a `WalletProvider` class that can generate wallets that store ED25519 keys, sign messages, and verify signatures. It also includes functionality to export keys to an encrypted file.
 
 ## Installation
 
@@ -40,7 +40,7 @@ You can sign a message with the wallet's secret key and verify the signature wit
 ```javascript
 const message = 'Hello, world!';
 const signature = wallet.signMessage(message);
-const isValid = wallet.verifySignature(message, signature, wallet.publicKey);
+const isValid = wallet.verify(message, signature);
 console.log(isValid); // Prints true if the signature is valid
 ```
 
@@ -50,7 +50,7 @@ You can export the wallet's keys to a JSON file:
 
 ```javascript
 const filePath = './wallet.json';
-wallet.exportToFile(filePath);
+exportToFile(wallet, filePath);
 ```
 
 ## Running Tests
