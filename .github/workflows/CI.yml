@@ -13,6 +13,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   tests:
     runs-on: ${{ matrix.os }}
@@ -52,22 +56,99 @@ jobs:
         run: npm ci
       - name: Run coverage
         run: npm run coverage
-      - name: Add coverage summary to GitHub
+      - name: Read coverage totals
+        id: coverage_totals
         run: |
           node <<'NODE'
           const fs = require('node:fs');
           const summary = JSON.parse(fs.readFileSync('coverage/coverage-summary.json', 'utf8')).total;
-          const rows = [
-            ['Lines', summary.lines],
-            ['Statements', summary.statements],
-            ['Functions', summary.functions],
-            ['Branches', summary.branches]
-          ]
-            .map(([name, value]) => `| ${name} | ${value.pct}% | ${value.covered}/${value.total} |`)
-            .join('\n');
-          const md = `## Coverage\n\n| Metric | Coverage | Covered/Total |\n| --- | ---: | ---: |\n${rows}\n`;
-          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, md);
+          const output = process.env.GITHUB_OUTPUT;
+          const values = {
+            lines_pct: summary.lines.pct,
+            lines_cov: summary.lines.covered,
+            lines_total: summary.lines.total,
+            statements_pct: summary.statements.pct,
+            statements_cov: summary.statements.covered,
+            statements_total: summary.statements.total,
+            functions_pct: summary.functions.pct,
+            functions_cov: summary.functions.covered,
+            functions_total: summary.functions.total,
+            branches_pct: summary.branches.pct,
+            branches_cov: summary.branches.covered,
+            branches_total: summary.branches.total
+          };
+          for (const [key, value] of Object.entries(values)) {
+            fs.appendFileSync(output, `${key}=${value}\n`);
+          }
           NODE
+      - name: Add coverage summary to GitHub
+        run: |
+          {
+            echo "## Coverage"
+            echo ""
+            echo "| Metric | Coverage | Covered/Total |"
+            echo "| --- | ---: | ---: |"
+            echo "| Lines | ${{ steps.coverage_totals.outputs.lines_pct }}% | ${{ steps.coverage_totals.outputs.lines_cov }}/${{ steps.coverage_totals.outputs.lines_total }} |"
+            echo "| Statements | ${{ steps.coverage_totals.outputs.statements_pct }}% | ${{ steps.coverage_totals.outputs.statements_cov }}/${{ steps.coverage_totals.outputs.statements_total }} |"
+            echo "| Functions | ${{ steps.coverage_totals.outputs.functions_pct }}% | ${{ steps.coverage_totals.outputs.functions_cov }}/${{ steps.coverage_totals.outputs.functions_total }} |"
+            echo "| Branches | ${{ steps.coverage_totals.outputs.branches_pct }}% | ${{ steps.coverage_totals.outputs.branches_cov }}/${{ steps.coverage_totals.outputs.branches_total }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Comment coverage on PR
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
+        uses: actions/github-script@v7
+        env:
+          LINES_PCT: ${{ steps.coverage_totals.outputs.lines_pct }}
+          LINES_COV: ${{ steps.coverage_totals.outputs.lines_cov }}
+          LINES_TOTAL: ${{ steps.coverage_totals.outputs.lines_total }}
+          STATEMENTS_PCT: ${{ steps.coverage_totals.outputs.statements_pct }}
+          STATEMENTS_COV: ${{ steps.coverage_totals.outputs.statements_cov }}
+          STATEMENTS_TOTAL: ${{ steps.coverage_totals.outputs.statements_total }}
+          FUNCTIONS_PCT: ${{ steps.coverage_totals.outputs.functions_pct }}
+          FUNCTIONS_COV: ${{ steps.coverage_totals.outputs.functions_cov }}
+          FUNCTIONS_TOTAL: ${{ steps.coverage_totals.outputs.functions_total }}
+          BRANCHES_PCT: ${{ steps.coverage_totals.outputs.branches_pct }}
+          BRANCHES_COV: ${{ steps.coverage_totals.outputs.branches_cov }}
+          BRANCHES_TOTAL: ${{ steps.coverage_totals.outputs.branches_total }}
+        with:
+          script: |
+            const marker = '<!-- trac-wallet-coverage -->';
+            const body = [
+              marker,
+              '## Coverage',
+              '',
+              '| Metric | Coverage | Covered/Total |',
+              '| --- | ---: | ---: |',
+              `| Lines | ${process.env.LINES_PCT}% | ${process.env.LINES_COV}/${process.env.LINES_TOTAL} |`,
+              `| Statements | ${process.env.STATEMENTS_PCT}% | ${process.env.STATEMENTS_COV}/${process.env.STATEMENTS_TOTAL} |`,
+              `| Functions | ${process.env.FUNCTIONS_PCT}% | ${process.env.FUNCTIONS_COV}/${process.env.FUNCTIONS_TOTAL} |`,
+              `| Branches | ${process.env.BRANCHES_PCT}% | ${process.env.BRANCHES_COV}/${process.env.BRANCHES_TOTAL} |`
+            ].join('\n');
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100
+            });
+            const existing = comments.find((comment) => comment.user.type === 'Bot' && comment.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body
+              });
+            }
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:
