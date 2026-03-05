@@ -5,4 +5,3 @@ export const TRAC_NETWORK_MSB_MAINNET_PREFIX = 'trac';
 export const TRAC_PUBLIC_KEY_SIZE = tracCryptoApi.address.PUB_KEY_SIZE;
 export const TRAC_SECRET_KEY_SIZE = tracCryptoApi.address.PRIV_KEY_SIZE;
 export const TRAC_SIGNATURE_SIZE = tracCryptoApi.signature.SIZE;
-export const DEFAULT_DERIVATION_PATH = "m/918'/0'/0'/0'"; // This should live in the trac-core-api

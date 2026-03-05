@@ -3,7 +3,7 @@ import fs from 'fs';
 import { IHDWallet, IWallet } from "./types/index.ts";
 import b4a from 'b4a';
 import * as tracCryptoApi from 'trac-crypto-api'
-import { WalletProvider } from './index.ts';
+import { WalletProvider } from './wallet.ts';
 
 const toWallet = (params) => {
     if (!params.networkPrefix) {
