@@ -3,7 +3,7 @@ import { IHDWallet, WalletProvider } from '../../src/index.ts';
 import b4a from 'b4a';
 import { join } from 'path';
 import fs from 'fs';
-import { mnemonic1, networkPrefix } from '../fixtures/fixtures.js';
+import { mnemonic1, networkPrefix } from '../fixtures/fixtures.ts';
 import { exportWallet, importFromFile } from '../../src/exporter.ts';
 
 const mnemonic = mnemonic1;

@@ -1,7 +1,7 @@
 /** @typedef {import('pear-interface')} */
 import * as tracCryptoApi from 'trac-crypto-api'
 import b4a from 'b4a'
-import type { HDParams, IHDWallet, KeyPair, Message, Signature, IWallet } from './types/wallet.js'
+import type { HDParams, IHDWallet, KeyPair, Message, Signature, IWallet } from './types/index.ts'
 
 /**
  * Sanitizes and validates a derivation path string.
@@ -181,4 +181,4 @@ export class WalletProvider {
     }
 }
 
-export type { IWallet, IHDWallet } from './types/wallet.js'
+export type { IWallet, IHDWallet } from './types/index.ts'

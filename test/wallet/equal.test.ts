@@ -3,7 +3,7 @@ import { WalletProvider } from '../../src/index.ts';
 // @ts-ignore
 import tracCryptoApi from 'trac-crypto-api';
 import b4a from 'b4a'
-import { mnemonic1, nonDefaultDerivationPath, networkPrefix, mnemonic2, secretKey } from '../fixtures/fixtures.js';
+import { mnemonic1, nonDefaultDerivationPath, networkPrefix, mnemonic2, secretKey } from '../fixtures/fixtures.ts';
 
 const message = b4a.from('hello world');
 const provider = () => new WalletProvider({ networkPrefix })

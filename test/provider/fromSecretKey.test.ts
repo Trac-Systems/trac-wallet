@@ -2,7 +2,7 @@ import test from 'brittle';
 import { WalletProvider } from '../../src/index.ts';
 import b4a from 'b4a';
 import tracCryptoApi from 'trac-crypto-api';
-import { networkPrefix, nonDefaultDerivationPath } from '../fixtures/fixtures.js';
+import { networkPrefix, nonDefaultDerivationPath } from '../fixtures/fixtures.ts';
 
 const provider = () => new WalletProvider({ networkPrefix })
 const asHex = (value: Buffer | Uint8Array): string => b4a.toString(value, 'hex')

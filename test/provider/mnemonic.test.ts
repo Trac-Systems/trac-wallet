@@ -1,6 +1,6 @@
 import { test } from 'brittle';
 import { WalletProvider } from '../../src/index.ts';
-import { networkPrefix, defaultDerivationPath, nonDefaultDerivationPath } from '../fixtures/fixtures.js';
+import { networkPrefix, defaultDerivationPath, nonDefaultDerivationPath } from '../fixtures/fixtures.ts';
 
 const provider = () => new WalletProvider({ networkPrefix })
 

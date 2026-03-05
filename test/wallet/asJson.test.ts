@@ -1,7 +1,7 @@
 import { test } from 'brittle';
 import { WalletProvider } from '../../src/index.ts';
 import b4a from 'b4a';
-import { mnemonic1, networkPrefix, nonDefaultDerivationPath, secretKey } from '../fixtures/fixtures.js';
+import { mnemonic1, networkPrefix, nonDefaultDerivationPath, secretKey } from '../fixtures/fixtures.ts';
 
 const provider = () => new WalletProvider({ networkPrefix })
 const asHex = (value: Buffer | Uint8Array): string => b4a.toString(value, 'hex')

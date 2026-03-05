@@ -1,9 +1,9 @@
 /** @typedef {import('pear-interface')} */
 import fs from 'fs';
-import { IHDWallet, IWallet } from "./types/wallet.js";
+import { IHDWallet, IWallet } from "./types/index.ts";
 import b4a from 'b4a';
 import * as tracCryptoApi from 'trac-crypto-api'
-import { WalletProvider } from './index.js';
+import { WalletProvider } from './index.ts';
 
 const toWallet = (params) => {
     if (!params.networkPrefix) {
