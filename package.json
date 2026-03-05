@@ -38,6 +38,8 @@
     "test:bare:compiled": "brittle-bare -c -t 180000 .test-build/test/all.test.js",
     "test:compiled": "npm run test:compile && npm run test:node:compiled && npm run test:bare:compiled",
     "test:ci": "npm run test:compiled",
+    "coverage": "c8 --all --src src --exclude 'test/**' --exclude '.test-build/**' --exclude 'backup/**' --reporter=text --reporter=json-summary --reporter=lcov --reporter=html node --loader ts-node/esm test/all.test.ts",
+    "coverage:report": "c8 report --reporter=text --reporter=lcov --reporter=html",
     "test": "npm run test:node",
     "prepack": "npm run build"
   },
@@ -62,6 +64,7 @@
     "@types/brittle": "^3.5.0",
     "@types/node": "^22.13.10",
     "brittle": "^3.18.0",
+    "c8": "^11.0.0",
     "sodium-universal": "^5.0.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.2"

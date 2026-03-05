@@ -37,3 +37,42 @@ jobs:
         run: npm i -g bare
       - name: Run tests
         run: npm run test:ci
+
+  coverage:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js 20
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Run coverage
+        run: npm run coverage
+      - name: Add coverage summary to GitHub
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const summary = JSON.parse(fs.readFileSync('coverage/coverage-summary.json', 'utf8')).total;
+          const rows = [
+            ['Lines', summary.lines],
+            ['Statements', summary.statements],
+            ['Functions', summary.functions],
+            ['Branches', summary.branches]
+          ]
+            .map(([name, value]) => `| ${name} | ${value.pct}% | ${value.covered}/${value.total} |`)
+            .join('\n');
+          const md = `## Coverage\n\n| Metric | Coverage | Covered/Total |\n| --- | ---: | ---: |\n${rows}\n`;
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, md);
+          NODE
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage/index.html
+            coverage/lcov.info
+            coverage/lcov-report
