@@ -4,23 +4,6 @@ import b4a from 'b4a'
 import type { HDParams, IHDWallet, KeyPair, Message, Signature, IWallet } from './types/index.ts'
 
 /**
- * Sanitizes and validates a derivation path string.
- * Accepts BIP32/BIP44 style paths like m/44'/0'/0'/0'/0'.
- * All segments must be hardened (i.e., end with a prime symbol ').
- * Returns null if invalid.
- * @param {string} derivationPath - The derivation path to sanitize.
- * @returns {string|null} The sanitized derivation path, or null if invalid.
- */
-// TODO: Replace this implementation when a similar function is implemented in Trac Crypto Api
-const sanitizeDerivationPath = (derivationPath?: string) => {
-    if (typeof derivationPath !== 'string') return null;
-    const trimmed = derivationPath.trim();
-    const bip32HardenedRegex = /^m(\/[0-9]+'?)+$/;
-    if (!bip32HardenedRegex.test(trimmed)) return null;
-    return trimmed;
-}
-
-/**
  * Sanitizes and validates a secret key.
  * @param {string} secretKey - The secret key in hex format.
  * @returns {Buffer} The sanitized secret key as a Buffer.
@@ -158,11 +141,10 @@ export class WalletProvider {
         this.#networkPrefix = networkPrefix
     }
 
-    async fromMnemonic({ mnemonic, derivationPath }: HDParams): Promise<IHDWallet> {
-        const sanitizedDerivationPath = sanitizeDerivationPath(derivationPath)
+    async fromMnemonic({ mnemonic, derivationPath = tracCryptoApi.address.DEFAULT_DERIVATION_PATH }: HDParams): Promise<IHDWallet> {
         const sanitizedMnemonic = sanitizeMnemonic(mnemonic)
         const options
-            = await tracCryptoApi.address.generate(this.#networkPrefix, sanitizedMnemonic, sanitizedDerivationPath)
+            = await tracCryptoApi.address.generate(this.#networkPrefix, sanitizedMnemonic, derivationPath) // This sanitizes the derivation path
         
         // @ts-ignore (should be removed after the js-docs are corrected on trac-core-api)
         return new HDWallet(this.#networkPrefix, options, { mnemonic: sanitizedMnemonic, derivationPath: options.derivationPath })
@@ -175,7 +157,7 @@ export class WalletProvider {
         return new Wallet(this.#networkPrefix, options)
     }
 
-    async generate(seed: string): Promise<IHDWallet> {
+    async generate(seed?: string): Promise<IHDWallet> {
         const mnemonic = tracCryptoApi.mnemonic.generate(seed)
         return await this.fromMnemonic({ mnemonic })
     }
