@@ -7,4 +7,4 @@ export {
     TRAC_SECRET_KEY_SIZE,
     TRAC_SIGNATURE_SIZE
 } from './constants.ts'
-export type { IWallet, IHDWallet } from './types/index.ts'
+export type { IWallet, IHDWallet, IVerifier } from './types/index.ts'
