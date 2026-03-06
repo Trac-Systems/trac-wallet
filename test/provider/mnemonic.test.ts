@@ -41,6 +41,6 @@ test('WalletProvider#fromMnemonic: throws on invalid mnemonic (11 words)', async
         await provider().fromMnemonic({ mnemonic: mnemonic11Words });
         t.fail('Expected error not thrown');
     } catch (error: any) {
-        t.is(error.message, 'Invalid secret key format. Please provide a valid hex string');
+        t.is(error.message, 'Invalid mnemonic, please provide a valid one');
     }
 })
