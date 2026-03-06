@@ -48,6 +48,7 @@ web_modules/
 
 # TypeScript cache
 *.tsbuildinfo
+.test-build
 
 # Optional npm cache directory
 .npm
@@ -132,3 +133,4 @@ dist
 
 # idea
 .idea
+.vscode

@@ -1,6 +1,6 @@
 # Trac Wallet
 
-This project provides a `Wallet` class that can generate and store ED25519 keys, sign messages, and verify signatures. It also includes functionality to export keys to a JSON file.
+This project provides a `WalletProvider` class that can generate wallets that store ED25519 keys, sign messages, and verify signatures. It also includes functionality to export keys to an encrypted file.
 
 ## Installation
 
@@ -17,13 +17,11 @@ npm install
 You can create a new wallet with a randomly generated mnemonic phrase:
 
 ```javascript
-import { Wallet } from './index.js';
+import { WalletProvider } from 'trac-wallet';
 
-const wallet = new Wallet();
-const mnemonic = wallet.generateMnemonic() // creates a randomly generated mnemonic phrase containing 12 words
-wallet.generateKeypair(mnemonic) // Generates a keypair using the provided mnemonic and stores it internally
+const provider = new WalletProvider({ networkPrefix: 'trac' });
+const wallet = await provider.generate('optional-seed');
 
-console.log(mnemonic);
 console.log(wallet.publicKey.toString('hex')); // Prints the public key
 ```
 
@@ -31,7 +29,7 @@ You can also create a wallet with a specific mnemonic phrase:
 
 ```javascript
 const mnemonic = 'session attitude weekend sign collect mobile return vacuum pool afraid wagon client';
-const wallet = new Wallet(mnemonic);
+const wallet = await provider.fromMnemonic({ mnemonic });
 console.log(wallet.publicKey.toString('hex')); // Prints the public key
 ```
 
@@ -42,7 +40,7 @@ You can sign a message with the wallet's secret key and verify the signature wit
 ```javascript
 const message = 'Hello, world!';
 const signature = wallet.signMessage(message);
-const isValid = wallet.verifySignature(message, signature, wallet.publicKey);
+const isValid = wallet.verify(message, signature);
 console.log(isValid); // Prints true if the signature is valid
 ```
 
@@ -52,7 +50,7 @@ You can export the wallet's keys to a JSON file:
 
 ```javascript
 const filePath = './wallet.json';
-wallet.exportToFile(filePath);
+exportToFile(wallet, filePath);
 ```
 
 ## Running Tests
