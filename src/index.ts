@@ -1,5 +1,6 @@
 export { WalletProvider } from './wallet.ts'
 export { exportWallet, importFromFile } from './exporter.ts'
+export { Verifier } from './verifier.ts'
 export {
     TRAC_NETWORK_MSB_TESTNET1_PREFIX,
     TRAC_NETWORK_MSB_MAINNET_PREFIX,

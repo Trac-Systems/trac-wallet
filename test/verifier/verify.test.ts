@@ -1,6 +1,6 @@
 import { test } from 'brittle';
 import { WalletProvider } from '../../src/index.ts';
-import { Verifier } from '../../src/verifier.ts';
+import { Verifier } from '../../src/index.ts';
 import sodium from 'sodium-universal';
 import b4a from 'b4a'
 import { mnemonic1, mnemonic2, nonDefaultDerivationPath, networkPrefix } from '../fixtures/fixtures.ts';
