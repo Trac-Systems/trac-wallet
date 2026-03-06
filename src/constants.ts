@@ -3,7 +3,7 @@ import tracCryptoApi from 'trac-crypto-api';
 /**
  * Bech32 human-readable part used for Trac testnet addresses.
  */
-export const TRAC_NETWORK_MSB_TESTNET1_PREFIX = 'tractest';
+export const TRAC_NETWORK_MSB_TESTNET1_PREFIX = 'testtrac';
 
 /**
  * Bech32 human-readable part used for Trac mainnet addresses.
