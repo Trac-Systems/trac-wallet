@@ -18,7 +18,7 @@ const sanitizeSecretKey = (secretKey: string) => {
 const sanitizeMnemonic = (mnemonic: string) => {
     const sanitized = tracCryptoApi.mnemonic.sanitize(mnemonic)
     if (sanitized === null) {
-        throw new Error('Invalid secret key format. Please provide a valid hex string');
+        throw new Error('Invalid mnemonic, please provide a valid one');
     }
 
     return sanitized
@@ -60,8 +60,8 @@ class Wallet implements IWallet {
 
     /**
      * Verifies a signature using the wallet's public key.
-     * @param {Message} signature - The signature to verify.
-     * @param {Signature} message - The message to verify.
+     * @param {Signature} signature - The signature to verify.
+     * @param {Message} message - The message to verify.
      * @returns {boolean} true if valid, false otherwise.
      */
     verify(signature: Signature, message: Message): boolean {

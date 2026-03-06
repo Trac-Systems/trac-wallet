@@ -25,8 +25,8 @@ export class Verifier implements IVerifier {
 
     /**
      * Verifies a signature using the internal public key.
-     * @param {Message} signature - The signature to verify.
-     * @param {Signature} message - The message to verify.
+     * @param {Signature} signature - The signature to verify.
+     * @param {Message} message - The message to verify.
      * @returns {boolean} true if valid, false otherwise.
      */
     verify(signature: Signature, message: Message): boolean {
