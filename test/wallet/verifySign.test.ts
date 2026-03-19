@@ -3,7 +3,7 @@ import { WalletProvider } from '../../src/index.ts';
 import tracCryptoApi from 'trac-crypto-api';
 import sodium from 'sodium-universal';
 import b4a from 'b4a'
-import { mnemonic1, mnemonic2, nonDefaultDerivationPath, networkPrefix } from '../fixtures/fixtures.ts';
+import { mnemonic1, mnemonic2, nonDefaultDerivationPath, addressPrefix } from '../fixtures/fixtures.ts';
 
 const message = b4a.from('hello world');
 
@@ -13,7 +13,7 @@ const randomBytes = (length: number) => {
     return rand;
 }
 
-const provider = () => new WalletProvider({ addressPrefix: networkPrefix })
+const provider = () => new WalletProvider({ addressPrefix })
 
 test('Wallet: sign produces a valid signature', async (t: any) => {
     const wallet = await provider().fromMnemonic({ mnemonic: mnemonic1, derivationPath: nonDefaultDerivationPath });

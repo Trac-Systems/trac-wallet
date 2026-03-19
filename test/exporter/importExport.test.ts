@@ -4,7 +4,7 @@ import b4a from 'b4a';
 import { join } from 'path';
 import fs from 'fs';
 import tracCryptoApi from 'trac-crypto-api';
-import { mnemonic1, networkPrefix, secretKey } from '../fixtures/fixtures.ts';
+import { mnemonic1, addressPrefix, secretKey } from '../fixtures/fixtures.ts';
 import { exportWallet, importFromFile } from '../../src/exporter.ts';
 
 const mnemonic = mnemonic1;
@@ -32,7 +32,7 @@ test('exporter: export and import preserves keypair', async t => {
     t.teardown(cleanup);
 
     const derivationPath = "m/44'/0'/0'/0'/0'";
-    const wallet = await new WalletProvider({ addressPrefix: networkPrefix }).fromMnemonic({ mnemonic, derivationPath });
+    const wallet = await new WalletProvider({ addressPrefix }).fromMnemonic({ mnemonic, derivationPath });
     exportWallet(wallet, filePath, password);
 
     const importedWallet = await importFromFile(filePath, password) as IHDWallet;
@@ -48,7 +48,7 @@ test('exporter: password can be empty', async t => {
     t.teardown(cleanup);
 
     const derivationPath = "m/44'/0'/0'/0'/0'";
-    const wallet = await new WalletProvider({ addressPrefix: networkPrefix }).fromMnemonic({ mnemonic, derivationPath });
+    const wallet = await new WalletProvider({ addressPrefix }).fromMnemonic({ mnemonic, derivationPath });
     const emptyPassword = b4a.alloc(0);
     exportWallet(wallet, filePath, emptyPassword);
 
@@ -95,7 +95,24 @@ test('exporter: import throws if keystore payload is invalid or corrupted', asyn
     }
 });
 
-test('exporter: import throws if decrypted payload misses networkPrefix', async t => {
+test('exporter: import uses provided hrp when decrypted payload misses addressPrefix', async t => {
+    t.teardown(cleanup);
+
+    const derivationPath = "m/44'/0'/0'/0'/0'";
+    const expectedWallet = await new WalletProvider({ addressPrefix }).fromMnemonic({ mnemonic, derivationPath });
+
+    writeEncryptedKeystore({
+        mnemonic,
+        derivationPath
+    });
+
+    const importedWallet = await importFromFile(filePath, password, addressPrefix) as IHDWallet;
+
+    t.is(importedWallet.address, expectedWallet.address);
+    t.is(importedWallet.derivationPath, derivationPath);
+});
+
+test('exporter: import throws if decrypted payload misses addressPrefix and hrp', async t => {
     t.teardown(cleanup);
 
     writeEncryptedKeystore({
@@ -115,10 +132,10 @@ test('exporter: import can build wallet from secretKey payload', async t => {
     t.teardown(cleanup);
 
     const secretKeyHex = b4a.toString(secretKey, 'hex');
-    const expectedWallet = await new WalletProvider({ addressPrefix: networkPrefix }).fromSecretKey(secretKeyHex);
+    const expectedWallet = await new WalletProvider({ addressPrefix }).fromSecretKey(secretKeyHex);
 
     writeEncryptedKeystore({
-        networkPrefix,
+        addressPrefix,
         secretKey: secretKeyHex
     });
 
@@ -128,10 +145,28 @@ test('exporter: import can build wallet from secretKey payload', async t => {
     t.is(expectedWallet.address, importedWallet.address);
 });
 
+test('exporter: import throws if baked publicKey does not match derived wallet', async t => {
+    t.teardown(cleanup);
+
+    writeEncryptedKeystore({
+        addressPrefix,
+        mnemonic,
+        derivationPath: "m/44'/0'/0'/0'/0'",
+        publicKey: '00'.repeat(tracCryptoApi.address.PUB_KEY_SIZE)
+    });
+
+    try {
+        await importFromFile(filePath, password);
+        t.fail('Expected error not thrown');
+    } catch (error: any) {
+        t.is(error.message, 'Imported keystore publicKey does not match the derived wallet');
+    }
+});
+
 test('exporter: import throws when decrypted payload has no keys', async t => {
     t.teardown(cleanup);
 
-    writeEncryptedKeystore({ networkPrefix });
+    writeEncryptedKeystore({ addressPrefix });
 
     try {
         await importFromFile(filePath, password);
@@ -144,7 +179,7 @@ test('exporter: import throws when decrypted payload has no keys', async t => {
 test('exporter: export throws if file already exists', async t => {
     t.teardown(cleanup);
 
-    const wallet = await new WalletProvider({ addressPrefix: networkPrefix }).fromMnemonic({ mnemonic });
+    const wallet = await new WalletProvider({ addressPrefix }).fromMnemonic({ mnemonic });
     exportWallet(wallet, filePath, password); // creates the file so when we attempt, it already exists.
 
     try {
@@ -159,7 +194,7 @@ test('exporter: import throws if password is wrong', async t => {
     t.teardown(cleanup);
 
     const derivationPath = "m/44'/0'/0'/0'/0'";
-    const wallet = await new WalletProvider({ addressPrefix: networkPrefix }).fromMnemonic({ mnemonic, derivationPath });
+    const wallet = await new WalletProvider({ addressPrefix }).fromMnemonic({ mnemonic, derivationPath });
     exportWallet(wallet, filePath, password);
 
     const wrongPassword = b4a.from('wrongpassword');
@@ -172,7 +207,7 @@ test('exporter: import throws if password is wrong', async t => {
 });
 
 test('exporter: export throws if password is not a buffer', async t => {
-    const wallet = await new WalletProvider({ addressPrefix: networkPrefix }).fromMnemonic({ mnemonic });
+    const wallet = await new WalletProvider({ addressPrefix }).fromMnemonic({ mnemonic });
     try {
         exportWallet(wallet, filePath, 'notabuffer' as any as Buffer); // I guess this is useful to test runtime logic
         t.fail('Expected error not thrown');
@@ -185,7 +220,7 @@ test('exporter: import throws if password is not a buffer', async t => {
     t.teardown(cleanup);
 
     const derivationPath = "m/44'/0'/0'/0'/0'";
-    const wallet = await new WalletProvider({ addressPrefix: networkPrefix }).fromMnemonic({ mnemonic, derivationPath });
+    const wallet = await new WalletProvider({ addressPrefix }).fromMnemonic({ mnemonic, derivationPath });
     exportWallet(wallet, filePath, password);
     try {
         await importFromFile(filePath, 'notabuffer' as any as Buffer);

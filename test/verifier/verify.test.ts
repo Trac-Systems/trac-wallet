@@ -3,7 +3,7 @@ import { WalletProvider } from '../../src/index.ts';
 import { Verifier } from '../../src/index.ts';
 import sodium from 'sodium-universal';
 import b4a from 'b4a'
-import { mnemonic1, mnemonic2, nonDefaultDerivationPath, networkPrefix } from '../fixtures/fixtures.ts';
+import { mnemonic1, mnemonic2, nonDefaultDerivationPath, addressPrefix } from '../fixtures/fixtures.ts';
 import tracCryptoApi from 'trac-crypto-api';
 
 const message = b4a.from('hello world');
@@ -14,7 +14,7 @@ const randomBytes = (length: number) => {
     return rand;
 }
 
-const provider = () => new WalletProvider({ addressPrefix: networkPrefix })
+const provider = () => new WalletProvider({ addressPrefix })
 
 test('Verifier: constructor throws for invalid public key length', (t: any) => {
     const invalidPublicKey = b4a.alloc(tracCryptoApi.address.PUB_KEY_SIZE - 1);
