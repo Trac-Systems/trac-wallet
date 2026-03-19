@@ -3,23 +3,47 @@ import fs from 'fs';
 import { IHDWallet, IWallet } from "./types/index.ts";
 import b4a from 'b4a';
 import * as tracCryptoApi from 'trac-crypto-api'
-import { WalletProvider } from './wallet.ts';
+import { CURRENT_VERSION, WalletProvider } from './wallet.ts';
 
-const toWallet = (params) => {
-    const addressPrefix = params.addressPrefix ?? params.networkPrefix;
+const ensureWalletIntegrity = (wallet: IWallet | IHDWallet, publicKey?: string) => {
+    if (!publicKey) {
+        return;
+    }
+
+    const importedPublicKey = b4a.from(publicKey, 'hex');
+    if (!b4a.equals(wallet.publicKey, importedPublicKey)) {
+        throw new Error('Imported keystore publicKey does not match the derived wallet');
+    }
+}
+
+const ensureSupportedVersion = (version?: unknown) => {
+    // This is here right now to ensure BC with the lib 1.0.x
+    if (version !== CURRENT_VERSION && version !== undefined) {
+        throw new Error('Imported keystore version is not supported');
+    }
+}
+
+const toWallet = async (params, hrp?: string) => {
+    ensureSupportedVersion(params.version);
+
+    const addressPrefix = params.addressPrefix ?? hrp;
 
     if (!addressPrefix) {
         throw new Error('Imported keystore is incompatible with this wallet version');
     }
 
     if (params.mnemonic) {
-        return new WalletProvider({ addressPrefix })
+        const wallet = await new WalletProvider({ addressPrefix })
             .fromMnemonic({ mnemonic: params.mnemonic, derivationPath: params.derivationPath });
+        ensureWalletIntegrity(wallet, params.publicKey);
+        return wallet;
     }
 
     if (params.secretKey) {
-        return new WalletProvider({ addressPrefix })
+        const wallet = await new WalletProvider({ addressPrefix })
             .fromSecretKey(params.secretKey)
+        ensureWalletIntegrity(wallet, params.publicKey);
+        return wallet;
     }
 
     throw new Error('Decrypted data does not contain valid keys');
@@ -98,10 +122,15 @@ export const exportWallet = (wallet: IWallet, filePath: string, password: Buffer
  * Imports a key pair from an encrypted JSON file.
  * @param {string} filePath - Path to the file.
  * @param {Buffer | null} [password] - Buffer used for decryption.
+ * @param {string} [hrp] - Optional address HRP to use when the decrypted payload does not contain one.
  * @returns {Promise<IWallet | IHDWallet>} - IWallet is a subset of IHDWallet.
  * @throws {Error} If required parameters are missing or invalid.
  */
-export const importFromFile = async (filePath: string, password: Buffer | Uint8Array = b4a.alloc(0)): Promise<IWallet | IHDWallet> => {
+export const importFromFile = async (
+    filePath: string,
+    password: Buffer | Uint8Array = b4a.alloc(0),
+    hrp?: string
+): Promise<IWallet | IHDWallet> => {
     validate(filePath, password)
 
     if (!fs.existsSync(filePath)) {
@@ -111,5 +140,5 @@ export const importFromFile = async (filePath: string, password: Buffer | Uint8A
     const fileData = fs.readFileSync(filePath, 'utf8')
     const decrypted = decryptKeystore(fileData, password);
 
-    return toWallet(decrypted);
+    return toWallet(decrypted, hrp);
 }

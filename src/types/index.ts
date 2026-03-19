@@ -40,3 +40,8 @@ export interface IHDWallet extends IWallet {
   readonly mnemonic: string;
   readonly derivationPath?: string;
 }
+
+/*
+ * A range-like entity e.g.: '1.0.0' | '1.1.0' that marks the supported versions for Keystore.
+ */
+export type KeyStoreVersion = '1.0.0' 

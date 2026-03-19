@@ -1,7 +1,9 @@
 /** @typedef {import('pear-interface')} */
 import * as tracCryptoApi from 'trac-crypto-api'
 import b4a from 'b4a'
-import type { HDParams, IHDWallet, KeyPair, Message, Signature, IWallet } from './types/index.ts'
+import type { HDParams, IHDWallet, KeyPair, Message, Signature, IWallet, KeyStoreVersion } from './types/index.ts'
+
+export const CURRENT_VERSION: KeyStoreVersion = '1.0.0'
 
 const sanitizeSecretKey = (secretKey: string) => {
     try {
@@ -86,7 +88,8 @@ class Wallet implements IWallet {
             addressPrefix: this.addressPrefix,
             publicKey: b4a.toString(this.publicKey, 'hex'),
             secretKey: b4a.toString(this.secretKey, 'hex'),
-            address: this.address
+            address: this.address,
+            version: CURRENT_VERSION
         };
 
         return JSON.stringify(toExport, null, 2);
@@ -116,7 +119,8 @@ class HDWallet extends Wallet implements IHDWallet {
             secretKey: b4a.toString(this.secretKey, 'hex'),
             address: this.address,
             mnemonic: this.mnemonic,
-            derivationPath: this.derivationPath
+            derivationPath: this.derivationPath,
+            version: CURRENT_VERSION
         };
 
         return JSON.stringify(toExport, null, 2);

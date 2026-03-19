@@ -2,15 +2,15 @@ import test from 'brittle';
 import { WalletProvider } from '../../src/index.ts';
 import b4a from 'b4a';
 import tracCryptoApi from 'trac-crypto-api';
-import { networkPrefix, nonDefaultDerivationPath } from '../fixtures/fixtures.ts';
+import { addressPrefix, nonDefaultDerivationPath } from '../fixtures/fixtures.ts';
 
-const provider = () => new WalletProvider({ addressPrefix: networkPrefix })
+const provider = () => new WalletProvider({ addressPrefix })
 const asHex = (value: Buffer | Uint8Array): string => b4a.toString(value, 'hex')
 
 async function randomKeyPair() {
     const mnemonic = tracCryptoApi.mnemonic.generate();
     // @ts-ignore
-    const kp = await tracCryptoApi.address.generate(networkPrefix, mnemonic, nonDefaultDerivationPath);
+    const kp = await tracCryptoApi.address.generate(addressPrefix, mnemonic, nonDefaultDerivationPath);
     return { publicKey: kp.publicKey, secretKey: kp.secretKey, address: kp.address };
 }
 
