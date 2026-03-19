@@ -3,7 +3,7 @@ import * as tracCryptoApi from 'trac-crypto-api'
 import b4a from 'b4a'
 import type { HDParams, IHDWallet, KeyPair, Message, Signature, IWallet, KeyStoreVersion } from './types/index.ts'
 
-const CURRENT_VERSION: KeyStoreVersion = '1.0.0'
+export const CURRENT_VERSION: KeyStoreVersion = '1.0.0'
 
 const sanitizeSecretKey = (secretKey: string) => {
     try {

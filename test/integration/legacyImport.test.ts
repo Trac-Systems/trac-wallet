@@ -17,11 +17,12 @@ const { default: LegacyWallet } = await import(legacyWalletModule);
 const { derivationPath, mnemonic1, networkPrefix } = await import(legacyFixturesModule);
 
 const password = b4a.from('testpassword');
-const filePath = join('./legacy-test-keyfile.json');
-const cleanup = () => fs.existsSync(filePath) && fs.unlinkSync(filePath)
+const createFilePath = () => join('.', `legacy-test-keyfile-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
+const cleanup = (filePath: string) => fs.existsSync(filePath) && fs.unlinkSync(filePath)
 
 test('integration: imports keystore exported by trac-wallet@1.0.3', async t => {
-    t.teardown(cleanup);
+    const filePath = createFilePath();
+    t.teardown(() => cleanup(filePath));
 
     const legacyWallet = new LegacyWallet({ mnemonic: mnemonic1, derivationPath, networkPrefix });
     await legacyWallet.ready;

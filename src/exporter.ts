@@ -3,7 +3,7 @@ import fs from 'fs';
 import { IHDWallet, IWallet } from "./types/index.ts";
 import b4a from 'b4a';
 import * as tracCryptoApi from 'trac-crypto-api'
-import { WalletProvider } from './wallet.ts';
+import { CURRENT_VERSION, WalletProvider } from './wallet.ts';
 
 const ensureWalletIntegrity = (wallet: IWallet | IHDWallet, publicKey?: string) => {
     if (!publicKey) {
@@ -16,7 +16,16 @@ const ensureWalletIntegrity = (wallet: IWallet | IHDWallet, publicKey?: string) 
     }
 }
 
+const ensureSupportedVersion = (version?: unknown) => {
+    // This is here right now to ensure BC with the lib 1.0.x
+    if (version !== CURRENT_VERSION && version !== undefined) {
+        throw new Error('Imported keystore version is not supported');
+    }
+}
+
 const toWallet = async (params, hrp?: string) => {
+    ensureSupportedVersion(params.version);
+
     const addressPrefix = params.addressPrefix ?? hrp;
 
     if (!addressPrefix) {
