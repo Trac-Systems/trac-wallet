@@ -4,10 +4,17 @@ import fs from 'fs';
 import { join } from 'path';
 import { IHDWallet } from '../../src/index.ts';
 import { importFromFile } from '../../src/exporter.ts';
+
+// Below is stuff by chatgpt to ensure this thing worked on the CI.
+const legacyPackageRoot = import.meta.url.includes('/.test-build/')
+    ? '../../../node_modules/trac-wallet/'
+    : '../../node_modules/trac-wallet/';
+const legacyWalletModule = new URL(`${legacyPackageRoot}index.js`, import.meta.url).href;
+const legacyFixturesModule = new URL(`${legacyPackageRoot}test/fixtures/fixtures.js`, import.meta.url).href;
 // @ts-ignore Legacy package fixture module has no TypeScript declarations.
-import LegacyWallet from '../../node_modules/trac-wallet/index.js';
+const { default: LegacyWallet } = await import(legacyWalletModule);
 // @ts-ignore Legacy package fixture module has no TypeScript declarations.
-import { derivationPath, mnemonic1, networkPrefix } from '../../node_modules/trac-wallet/test/fixtures/fixtures.js';
+const { derivationPath, mnemonic1, networkPrefix } = await import(legacyFixturesModule);
 
 const password = b4a.from('testpassword');
 const filePath = join('./legacy-test-keyfile.json');
