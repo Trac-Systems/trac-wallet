@@ -63,7 +63,7 @@ class Wallet {
      * @returns {string|null} The derivation path, or null if not set.
      */
     get derivationPath() {
-        return this.#keyPair.derivationPath;
+        return this.#derivationPath;
     }
 
     /**
