@@ -19,7 +19,7 @@ test('PeerWallet: export and import preserves keypair', async t => {
     await wallet.ready;
     wallet.exportToFile(filePath, password);
 
-    const importedWallet = new PeerWallet({ networkPrefix });
+    const importedWallet = new PeerWallet({ networkPrefix, derivationPath });
     await importedWallet.ready;
     importedWallet.importFromFile(filePath, password);
 
@@ -39,7 +39,7 @@ test('PeerWallet: password can be empty', async t => {
     const emptyPassword = b4a.alloc(0);
     wallet.exportToFile(filePath, emptyPassword);
 
-    const importedWallet = new PeerWallet({ networkPrefix });
+    const importedWallet = new PeerWallet({ networkPrefix, derivationPath });
     await importedWallet.ready;
     importedWallet.importFromFile(filePath, emptyPassword);
 
