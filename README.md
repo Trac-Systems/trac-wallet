@@ -20,7 +20,7 @@ You can create a new wallet with a randomly generated mnemonic phrase:
 import { WalletProvider } from 'trac-wallet';
 
 const provider = new WalletProvider({ addressPrefix: 'trac' });
-const wallet = await provider.generate('optional-seed');
+const wallet = await provider.generate({ seed: 'optional-seed' });
 
 console.log(wallet.publicKey.toString('hex')); // Prints the public key
 ```

@@ -13,7 +13,7 @@ test('WalletProvider#generate: creates a wallet', async t => {
 });
 
 test('WalletProvider#generate: reusing mnemonic with the same derivation path yields the same address', async t => {
-    const generatedWallet = await provider().generate(undefined, nonDefaultDerivationPath) as IHDWallet;
+    const generatedWallet = await provider().generate({ derivationPath: nonDefaultDerivationPath }) as IHDWallet;
     const recreatedWallet = await provider().fromMnemonic({
         mnemonic: generatedWallet.mnemonic,
         derivationPath: nonDefaultDerivationPath

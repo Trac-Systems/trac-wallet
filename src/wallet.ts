@@ -1,7 +1,7 @@
 /** @typedef {import('pear-interface')} */
 import * as tracCryptoApi from 'trac-crypto-api'
 import b4a from 'b4a'
-import type { HDParams, IHDWallet, KeyPair, Message, Signature, IWallet, KeyStoreVersion } from './types/index.ts'
+import type { GenerateParams, HDParams, IHDWallet, KeyPair, Message, Signature, IWallet, KeyStoreVersion } from './types/index.ts'
 
 export const CURRENT_VERSION: KeyStoreVersion = '1.0.0'
 
@@ -73,7 +73,7 @@ class Wallet implements IWallet {
     /**
      * Verifies if both wallets are equal
      * @param {IWallet} other - The wallet to compare with
-     * @returns {boolean} true if valid, false otherwise.
+     * @returns {boolean} true if both wallets have the same address, false otherwise.
      */
     equals(other: IWallet): boolean {
         return this.address === other.address
@@ -81,7 +81,7 @@ class Wallet implements IWallet {
 
     /**
      * Produces a string (json) representation of the wallet.
-     * @returns {string} the wallet as json
+     * @returns {string} The wallet serialized as JSON.
      */
     asJson(): string {
         const toExport = {
@@ -133,7 +133,7 @@ export class WalletProvider {
     /**
      * Creates a wallet provider bound to an address prefix. 
      * @param {{ addressPrefix: string }} options - Provider options. 
-     * @param {string} options.addressPrefix - Address HRP prefix (for example `trac` or `tractest`).
+     * @param {string} options.addressPrefix - Address HRP prefix (for example `trac` or `testtrac`).
      */
     constructor({ addressPrefix }: { addressPrefix: string }) {
         this.#addressPrefix = addressPrefix
@@ -142,7 +142,7 @@ export class WalletProvider {
     /**
      * Creates an HD wallet from a mnemonic and optional derivation path.
      * @param {HDParams} params - Mnemonic and derivation path.
-     * @returns {Promise<IHDWallet>} The generated HD wallet.
+     * @returns {Promise<IHDWallet>} The HD wallet derived from the supplied mnemonic.
      * @throws {Error} If mnemonic or derivation path are invalid. Bubbles up other crypto-related errors.
      */
     async fromMnemonic({ mnemonic, derivationPath = tracCryptoApi.address.DEFAULT_DERIVATION_PATH }: HDParams): Promise<IHDWallet> {
@@ -168,12 +168,13 @@ export class WalletProvider {
     }
 
     /**
-     * Generates a new HD wallet using an optional deterministic seed and derivation path.
-     * @param {string} [seed] - Optional seed for deterministic mnemonic generation.
-     * @param {string} [derivationPath] - Optional derivation path used to derive the wallet address.
+     * Generates a new HD wallet using optional deterministic seed and derivation path options.
+     * @param {GenerateParams} [params] - Optional generation parameters.
+     * @param {string} [params.seed] - Optional seed for deterministic mnemonic generation.
+     * @param {string} [params.derivationPath] - Optional derivation path used to derive the wallet address.
      * @returns {Promise<IHDWallet>} The generated HD wallet.
      */
-    async generate(seed?: string, derivationPath?: string): Promise<IHDWallet> {
+    async generate({ seed, derivationPath }: GenerateParams = {}): Promise<IHDWallet> {
         const mnemonic = tracCryptoApi.mnemonic.generate(seed)
         return await this.fromMnemonic({ mnemonic, derivationPath })
     }

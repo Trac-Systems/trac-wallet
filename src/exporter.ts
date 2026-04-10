@@ -121,9 +121,9 @@ export const exportWallet = (wallet: IWallet, filePath: string, password: Buffer
 /**
  * Imports a key pair from an encrypted JSON file.
  * @param {string} filePath - Path to the file.
- * @param {Buffer | null} [password] - Buffer used for decryption.
+ * @param {Buffer | Uint8Array} [password] - Buffer used for decryption.
  * @param {string} [hrp] - Optional address HRP to use when the decrypted payload does not contain one.
- * @returns {Promise<IWallet | IHDWallet>} - IWallet is a subset of IHDWallet.
+ * @returns {Promise<IWallet | IHDWallet>} The imported wallet.
  * @throws {Error} If required parameters are missing or invalid.
  */
 export const importFromFile = async (

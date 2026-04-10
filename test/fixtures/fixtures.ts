@@ -1,5 +1,6 @@
 import tracCryptoApi from 'trac-crypto-api';
 import b4a from 'b4a';
+import { TRAC_NETWORK_MSB_TESTNET1_PREFIX } from '../../src/constants.ts';
 
 export const mnemonic1 = 'bar same olive hurry place manage truck sleep banana wrist harvest bus clap prefer clarify copy leader jeans acoustic stairs cover echo reopen grow';
 export const mnemonic2 = 'bundle dice bomb maze risk future deal force alpha blanket flush decline ski despair decline stand crunch stage mobile net sunset cool milk drip';
@@ -7,10 +8,10 @@ export const validMnemonic = 'virus shy bid eyebrow remove cool jungle seed eleg
 export const mnemonic11Words = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon";
 export const nonSanitizedMnemonic = '    ' + mnemonic1.toUpperCase() + '    ';
 export const addressPrefix = 'test';
-export const testnetAddressPrefix = 'testtrac';
+export const testnetAddressPrefix = TRAC_NETWORK_MSB_TESTNET1_PREFIX;
 export const nonDefaultDerivationPath = "m/44'/0'/0'/0'/0'"; // standard BIP44 path
 export const defaultDerivationPath = "m/918'/0'/0'/0'"
-export const testnetDerivationPath = `m/${tracCryptoApi.TESTNET_ID}'/0'/0'/0'`;
+export const testnetDerivationPath = tracCryptoApi.address.TESNET_DERIVATION_PATH;
 export const invalidDerivationPath = 'm/4294967296'
 export const validMnemonicExpectedTestnetAddress = 'testtrac166qlmx26m5pxfjfwpys87u9yrvqrfy6ya493lze59t67q8ufu23s2zn5xh';
 export const secretKey = b4a.from(
