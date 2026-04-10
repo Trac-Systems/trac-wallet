@@ -168,12 +168,13 @@ export class WalletProvider {
     }
 
     /**
-     * Generates a new HD wallet using an optional deterministic seed.
+     * Generates a new HD wallet using an optional deterministic seed and derivation path.
      * @param {string} [seed] - Optional seed for deterministic mnemonic generation.
+     * @param {string} [derivationPath] - Optional derivation path used to derive the wallet address.
      * @returns {Promise<IHDWallet>} The generated HD wallet.
      */
-    async generate(seed?: string): Promise<IHDWallet> {
+    async generate(seed?: string, derivationPath?: string): Promise<IHDWallet> {
         const mnemonic = tracCryptoApi.mnemonic.generate(seed)
-        return await this.fromMnemonic({ mnemonic })
+        return await this.fromMnemonic({ mnemonic, derivationPath })
     }
 }
