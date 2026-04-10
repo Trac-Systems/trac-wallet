@@ -8,4 +8,4 @@ export {
     TRAC_SECRET_KEY_SIZE,
     TRAC_SIGNATURE_SIZE
 } from './constants.ts'
-export type { IWallet, IHDWallet, IVerifier } from './types/index.ts'
+export type { GenerateParams, IWallet, IHDWallet, IVerifier } from './types/index.ts'

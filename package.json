@@ -1,6 +1,6 @@
 {
   "name": "trac-wallet",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
@@ -54,7 +54,7 @@
     "bare-tty": "^5.0.2",
     "fs": "npm:bare-node-fs",
     "path": "npm:bare-node-path",
-    "trac-crypto-api": "0.1.4"
+    "trac-crypto-api": "0.1.5"
   },
   "devDependencies": {
     "@types/b4a": "^1.6.5",

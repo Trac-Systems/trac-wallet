@@ -14,6 +14,11 @@ export type HDParams = {
   derivationPath?: string;
 };
 
+export type GenerateParams = {
+  seed?: string;
+  derivationPath?: string;
+};
+
 /**
  * Basic stateful facility for message verification
  */
