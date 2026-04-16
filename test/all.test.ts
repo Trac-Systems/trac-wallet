@@ -1,7 +1,11 @@
 import test from 'brittle';
 
 async function runTests() {
-    const harness = test as any;
+    const harness = test as typeof test & {
+        pause(): void;
+        resume(): void;
+    };
+
     harness.pause();
     await import('./wallet/verifySign.test.ts');
     await import('./wallet/equal.test.ts');

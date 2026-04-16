@@ -12,7 +12,7 @@ const sanitizeSecretKey = (secretKey: string) => {
             throw new Error('Invalid secret key length');
         }
         return buffer;
-    } catch (error) {
+    } catch {
         throw new Error('Invalid secret key format. Please provide a valid hex string');
     }
 }
@@ -150,7 +150,7 @@ export class WalletProvider {
         const options
             = await tracCryptoApi.address.generate(this.#addressPrefix, sanitizedMnemonic, derivationPath) // This sanitizes the derivation path
 
-        // @ts-ignore (should be removed after the js-docs are corrected on trac-core-api)
+        //@ts-expect-error (should be removed after the js-docs are corrected on trac-core-api)
         return new HDWallet(this.#addressPrefix, options, { mnemonic: sanitizedMnemonic, derivationPath: options.derivationPath })
     }
 

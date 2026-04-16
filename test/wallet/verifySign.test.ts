@@ -15,7 +15,7 @@ const randomBytes = (length: number) => {
 
 const provider = () => new WalletProvider({ addressPrefix })
 
-test('Wallet: sign produces a valid signature', async (t: any) => {
+test('Wallet: sign produces a valid signature', async t => {
     const wallet = await provider().fromMnemonic({ mnemonic: mnemonic1, derivationPath: nonDefaultDerivationPath });
     const signature = wallet.sign(message);
     const verify = wallet.verify(signature, message);
@@ -24,28 +24,28 @@ test('Wallet: sign produces a valid signature', async (t: any) => {
     t.ok(verify, 'signature is valid');
 });
 
-test('Wallet: can sign and verify', async (t: any) => {
+test('Wallet: can sign and verify', async t => {
     const wallet = await provider().fromMnemonic({ mnemonic: mnemonic1, derivationPath: nonDefaultDerivationPath });
     const signature = wallet.sign(message);
     const verify = wallet.verify(signature, message);
     t.ok(verify, 'signature is valid');
 });
 
-test('Wallet: verify returns false for tampered message', async (t: any) => {
+test('Wallet: verify returns false for tampered message', async t => {
     const wallet = await provider().fromMnemonic({ mnemonic: mnemonic1, derivationPath: nonDefaultDerivationPath });
     const signature = wallet.sign(message);
     const tampered = b4a.from('hello world!');
     t.not(wallet.verify(signature, tampered), true);
 });
 
-test('Wallet: verify returns false for tampered signature', async (t: any) => {
+test('Wallet: verify returns false for tampered signature', async t => {
     const wallet = await provider().fromMnemonic({ mnemonic: mnemonic1, derivationPath: nonDefaultDerivationPath });
     const signature = wallet.sign(message);
     const tamperedSig = randomBytes(signature.length);
     t.not(wallet.verify(tamperedSig, message), true);
 });
 
-test('Wallet: verify returns false for wrong wallet', async (t: any) => {
+test('Wallet: verify returns false for wrong wallet', async t => {
     const wallet1 = await provider().fromMnemonic({ mnemonic: mnemonic1, derivationPath: nonDefaultDerivationPath });
     const wallet2 = await provider().fromMnemonic({ mnemonic: mnemonic2, derivationPath: nonDefaultDerivationPath });
     const signature = wallet1.sign(message);

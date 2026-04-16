@@ -11,6 +11,7 @@ const mnemonic = mnemonic1;
 const password = b4a.from('testpassword');
 const createFilePath = () => join('.', `test-keyfile-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
 const cleanup = (filePath: string) => fs.existsSync(filePath) && fs.unlinkSync(filePath)
+const getErrorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
 
 const writeEncryptedKeystore = (
     filePath: string,
@@ -70,8 +71,8 @@ test('exporter: import throws if file does not exist', async t => {
     try {
         await importFromFile(filename, password);
         t.fail('Expected error not thrown');
-    } catch (error: any) {
-        t.is(error.message, `File ${filename} not found`);
+    } catch (error) {
+        t.is(getErrorMessage(error), `File ${filename} not found`);
     }
 });
 
@@ -79,8 +80,8 @@ test('exporter: validate throws if file path is empty', async t => {
     try {
         await importFromFile('', password);
         t.fail('Expected error not thrown');
-    } catch (error: any) {
-        t.is(error.message, 'File path is required');
+    } catch (error) {
+        t.is(getErrorMessage(error), 'File path is required');
     }
 });
 
@@ -92,8 +93,8 @@ test('exporter: import throws if keystore payload is invalid or corrupted', asyn
     try {
         await importFromFile(filePath, password);
         t.fail('Expected error not thrown');
-    } catch (error: any) {
-        t.is(error.message, 'Could not decrypt keyfile. Data is invalid or corrupted');
+    } catch (error) {
+        t.is(getErrorMessage(error), 'Could not decrypt keyfile. Data is invalid or corrupted');
     }
 });
 
@@ -127,8 +128,8 @@ test('exporter: import throws if decrypted payload misses addressPrefix and hrp'
     try {
         await importFromFile(filePath, password);
         t.fail('Expected error not thrown');
-    } catch (error: any) {
-        t.is(error.message, 'Imported keystore is incompatible with this wallet version');
+    } catch (error) {
+        t.is(getErrorMessage(error), 'Imported keystore is incompatible with this wallet version');
     }
 });
 
@@ -146,8 +147,8 @@ test('exporter: import throws if keystore version is unsupported', async t => {
     try {
         await importFromFile(filePath, password);
         t.fail('Expected error not thrown');
-    } catch (error: any) {
-        t.is(error.message, 'Imported keystore version is not supported');
+    } catch (error) {
+        t.is(getErrorMessage(error), 'Imported keystore version is not supported');
     }
 });
 
@@ -183,8 +184,8 @@ test('exporter: import throws if baked publicKey does not match derived wallet',
     try {
         await importFromFile(filePath, password);
         t.fail('Expected error not thrown');
-    } catch (error: any) {
-        t.is(error.message, 'Imported keystore publicKey does not match the derived wallet');
+    } catch (error) {
+        t.is(getErrorMessage(error), 'Imported keystore publicKey does not match the derived wallet');
     }
 });
 
@@ -197,8 +198,8 @@ test('exporter: import throws when decrypted payload has no keys', async t => {
     try {
         await importFromFile(filePath, password);
         t.fail('Expected error not thrown');
-    } catch (error: any) {
-        t.is(error.message, 'Decrypted data does not contain valid keys');
+    } catch (error) {
+        t.is(getErrorMessage(error), 'Decrypted data does not contain valid keys');
     }
 });
 
@@ -212,8 +213,8 @@ test('exporter: export throws if file already exists', async t => {
     try {
         exportWallet(wallet, filePath, password);
         t.fail('Expected error not thrown');
-    } catch (error: any) {
-        t.is(error.message, `File ${filePath} already exists`);
+    } catch (error) {
+        t.is(getErrorMessage(error), `File ${filePath} already exists`);
     }
 });
 
@@ -229,8 +230,8 @@ test('exporter: import throws if password is wrong', async t => {
     try {
         await importFromFile(filePath, wrongPassword);
         t.fail('Expected error not thrown');
-    } catch (error: any) {
-        t.is(error.message, 'Failed to decrypt data. Invalid key or corrupted data.');
+    } catch (error) {
+        t.is(getErrorMessage(error), 'Failed to decrypt data. Invalid key or corrupted data.');
     }
 });
 
@@ -239,10 +240,10 @@ test('exporter: export throws if password is not a buffer', async t => {
 
     const wallet = await new WalletProvider({ addressPrefix }).fromMnemonic({ mnemonic });
     try {
-        exportWallet(wallet, filePath, 'notabuffer' as any as Buffer); // I guess this is useful to test runtime logic
+        exportWallet(wallet, filePath, 'notabuffer' as unknown as Buffer); // I guess this is useful to test runtime logic
         t.fail('Expected error not thrown');
-    } catch (error: any) {
-        t.is(error.message, 'Password must be a buffer');
+    } catch (error) {
+        t.is(getErrorMessage(error), 'Password must be a buffer');
     }
 });
 
@@ -254,9 +255,9 @@ test('exporter: import throws if password is not a buffer', async t => {
     const wallet = await new WalletProvider({ addressPrefix }).fromMnemonic({ mnemonic, derivationPath });
     exportWallet(wallet, filePath, password);
     try {
-        await importFromFile(filePath, 'notabuffer' as any as Buffer);
+        await importFromFile(filePath, 'notabuffer' as unknown as Buffer);
         t.fail('Expected error not thrown');
-    } catch (error: any) {
-        t.is(error.message, 'Password must be a buffer');
+    } catch (error) {
+        t.is(getErrorMessage(error), 'Password must be a buffer');
     }
 });
