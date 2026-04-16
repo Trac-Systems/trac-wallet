@@ -17,7 +17,7 @@ export const validMnemonicExpectedTestnetAddress = 'testtrac166qlmx26m5pxfjfwpys
 export const secretKey = b4a.from(
     '2f45dec15453458c0f9fe5a26714b199d4a9ced62667ec954a1cf081fbd0386c644353180d4f86248841b043ff4c21d57956acefba62a156e11d746c7f1915c0',
     'hex'
-  )
+)
 
 export const isAddressValid = (address: string, prefix: string, pubKey: string) => {
     const isString = typeof address === 'string';
