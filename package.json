@@ -37,6 +37,8 @@
     "test:bare": "npm run test:compile && npm run test:bare:compiled",
     "test:bare:compiled": "brittle-bare -c -t 180000 .test-build/test/all.test.js",
     "test:compiled": "npm run test:compile && npm run test:node:compiled && npm run test:bare:compiled",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "test:ci": "npm run test:compiled",
     "coverage": "c8 --all --src src --exclude 'test/**' --exclude '.test-build/**' --exclude 'backup/**' --exclude 'src/constants.ts' --exclude 'src/types/**' --reporter=text --reporter=json-summary --reporter=lcov --reporter=html node --loader ts-node/esm test/all.test.ts",
     "coverage:report": "c8 report --reporter=text --reporter=lcov --reporter=html",
@@ -57,15 +59,20 @@
     "trac-crypto-api": "0.1.5"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/b4a": "^1.6.5",
     "@types/brittle": "^3.5.0",
     "@types/node": "^22.13.10",
     "brittle": "^3.18.0",
     "c8": "^11.0.0",
+    "eslint": "^10.2.0",
+    "globals": "^17.5.0",
+    "jiti": "^2.6.1",
     "sodium-universal": "^5.0.1",
     "trac-wallet": "1.0.3",
     "ts-node": "^10.9.2",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.58.2"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org",

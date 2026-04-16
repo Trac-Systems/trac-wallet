@@ -37,6 +37,8 @@ jobs:
         run: npm ci
       - name: Build package
         run: npm run build
+      - name: Run Eslint
+        run: npm run lint
       - name: Install bare
         run: npm i -g bare
       - name: Run tests
