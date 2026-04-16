@@ -54,7 +54,7 @@ test('WalletProvider#fromMnemonic: throws on invalid derivation path', async t =
     try {
         await provider().fromMnemonic({ mnemonic: validMnemonic, derivationPath: invalidDerivationPath });
         t.fail('Expected error not thrown');
-    } catch (error: any) {
+    } catch (error) {
         t.ok(error.message.includes('Invalid segment'), 'throws for invalid derivation path');
     }
 })
@@ -63,7 +63,7 @@ test('WalletProvider#fromMnemonic: throws on invalid mnemonic (11 words)', async
     try {
         await provider().fromMnemonic({ mnemonic: mnemonic11Words });
         t.fail('Expected error not thrown');
-    } catch (error: any) {
+    } catch (error) {
         t.is(error.message, 'Invalid mnemonic, please provide a valid one');
     }
 })

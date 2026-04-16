@@ -15,33 +15,34 @@ const randomBytes = (length: number) => {
 }
 
 const provider = () => new WalletProvider({ addressPrefix })
+const getErrorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
 
-test('Verifier: constructor throws for invalid public key length', (t: any) => {
+test('Verifier: constructor throws for invalid public key length', t => {
     const invalidPublicKey = b4a.alloc(tracCryptoApi.address.PUB_KEY_SIZE - 1);
     try {
         new Verifier(invalidPublicKey);
         t.fail('Expected error not thrown');
-    } catch (error: any) {
+    } catch (error: unknown) {
         t.is(
-            error.message,
+            getErrorMessage(error),
             `Invalid public key. Expected a Buffer of length ${tracCryptoApi.address.PUB_KEY_SIZE}, got ${tracCryptoApi.address.PUB_KEY_SIZE - 1}`
         );
     }
 });
 
-test('Verifier: constructor throws for non-buffer public key', (t: any) => {
+test('Verifier: constructor throws for non-buffer public key', t => {
     try {
-        new Verifier('not-a-buffer' as any);
+        new Verifier('not-a-buffer' as unknown as Buffer);
         t.fail('Expected error not thrown');
-    } catch (error: any) {
+    } catch (error: unknown) {
         t.is(
-            error.message,
+            getErrorMessage(error),
             `Invalid public key. Expected a Buffer of length ${tracCryptoApi.address.PUB_KEY_SIZE}, got 12`
         );
     }
 });
 
-test('Verifier: verify returns true for valid wallet signature', async (t: any) => {
+test('Verifier: verify returns true for valid wallet signature', async t => {
     const wallet = await provider().fromMnemonic({ mnemonic: mnemonic1, derivationPath: nonDefaultDerivationPath });
     const verifier = new Verifier(wallet.publicKey);
     const signature = wallet.sign(message);
@@ -49,7 +50,7 @@ test('Verifier: verify returns true for valid wallet signature', async (t: any) 
     t.ok(verifier.verify(signature, message), 'signature is valid');
 });
 
-test('Verifier: can verify wallet signature', async (t: any) => {
+test('Verifier: can verify wallet signature', async t => {
     const wallet = await provider().fromMnemonic({ mnemonic: mnemonic1, derivationPath: nonDefaultDerivationPath });
     const verifier = new Verifier(wallet.publicKey);
     const signature = wallet.sign(message);
@@ -57,7 +58,7 @@ test('Verifier: can verify wallet signature', async (t: any) => {
     t.ok(verify, 'signature is valid');
 });
 
-test('Verifier: verify returns false for tampered message', async (t: any) => {
+test('Verifier: verify returns false for tampered message', async t => {
     const wallet = await provider().fromMnemonic({ mnemonic: mnemonic1, derivationPath: nonDefaultDerivationPath });
     const verifier = new Verifier(wallet.publicKey);
     const signature = wallet.sign(message);
@@ -65,7 +66,7 @@ test('Verifier: verify returns false for tampered message', async (t: any) => {
     t.not(verifier.verify(signature, tampered), true);
 });
 
-test('Verifier: verify returns false for tampered signature', async (t: any) => {
+test('Verifier: verify returns false for tampered signature', async t => {
     const wallet = await provider().fromMnemonic({ mnemonic: mnemonic1, derivationPath: nonDefaultDerivationPath });
     const verifier = new Verifier(wallet.publicKey);
     const signature = wallet.sign(message);
@@ -73,7 +74,7 @@ test('Verifier: verify returns false for tampered signature', async (t: any) => 
     t.not(verifier.verify(tamperedSig, message), true);
 });
 
-test('Verifier: verify returns false for wrong public key', async (t: any) => {
+test('Verifier: verify returns false for wrong public key', async t => {
     const wallet1 = await provider().fromMnemonic({ mnemonic: mnemonic1, derivationPath: nonDefaultDerivationPath });
     const wallet2 = await provider().fromMnemonic({ mnemonic: mnemonic2, derivationPath: nonDefaultDerivationPath });
     const verifier = new Verifier(wallet2.publicKey);
