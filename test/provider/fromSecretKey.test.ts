@@ -9,7 +9,7 @@ const asHex = (value: Buffer | Uint8Array): string => b4a.toString(value, 'hex')
 
 async function randomKeyPair() {
     const mnemonic = tracCryptoApi.mnemonic.generate();
-    // @ts-expect-error (should be removed after the js-docs are corrected on trac-crypto-api)
+    // @ts-ignore (should be removed after the js-docs are corrected on trac-crypto-api)
     const kp = await tracCryptoApi.address.generate(addressPrefix, mnemonic, nonDefaultDerivationPath);
     return { publicKey: kp.publicKey, secretKey: kp.secretKey, address: kp.address };
 }

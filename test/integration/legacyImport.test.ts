@@ -10,9 +10,9 @@ const legacyPackageRoot = import.meta.url.includes('/.test-build/')
     : '../../node_modules/trac-wallet/';
 const legacyWalletModule = new URL(`${legacyPackageRoot}index.js`, import.meta.url).href;
 const legacyFixturesModule = new URL(`${legacyPackageRoot}test/fixtures/fixtures.js`, import.meta.url).href;
-// @ts-expect-error Legacy package fixture module has no TypeScript declarations.
+// @ts-ignore Legacy package fixture module has no TypeScript declarations.
 const { default: LegacyWallet } = await import(legacyWalletModule);
-// @ts-expect-error package fixture module has no TypeScript declarations.
+// @ts-ignore package fixture module has no TypeScript declarations.
 const { derivationPath, mnemonic1, networkPrefix } = await import(legacyFixturesModule);
 
 const password = b4a.from('testpassword');

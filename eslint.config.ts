@@ -46,4 +46,9 @@ export default defineConfig([
         }
     },
     tseslint.configs.recommended,
+    {
+        rules: {
+            "@typescript-eslint/ban-ts-comment": "off",
+        }
+    }
 ]);

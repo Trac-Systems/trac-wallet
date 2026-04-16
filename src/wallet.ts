@@ -150,7 +150,7 @@ export class WalletProvider {
         const options
             = await tracCryptoApi.address.generate(this.#addressPrefix, sanitizedMnemonic, derivationPath) // This sanitizes the derivation path
 
-        //@ts-expect-error (should be removed after the js-docs are corrected on trac-core-api)
+        //@ts-ignore (should be removed after the js-docs are corrected on trac-core-api)
         return new HDWallet(this.#addressPrefix, options, { mnemonic: sanitizedMnemonic, derivationPath: options.derivationPath })
     }
 
